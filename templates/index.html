@@ -8,8 +8,16 @@
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-slate-900">
-    <div id="chat_room" class="flex h-screen" hx-trigger="every 1s" hx-get="/chat" hx-swap="#content"> 
-        <div id="content" class="m-auto shadow-md bg-slate-50 p-5"> Hello World! </div>
+    <div id="chat_room" class="flex h-screen">
+        <div class="m-auto">
+            <div class="shadow-md bg-slate-50 p-5" hx-trigger="every 5s" hx-get="/chat" hx-swap="#content">
+                 <span id="content">Hello World!</span> 
+            </div>
+            <form class="bg-slate-200" hx-post="/chat" hx-swap="none">
+                <label for="message"> <input type="text" name="message"></label>
+                <button type="submit">Submit</button>
+            </form>
+        </div> 
     </div>
 </body>
 </html>
