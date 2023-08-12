@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Document</title>
     <script src="https://unpkg.com/htmx.org@1.9.4" integrity="sha384-zUfuhFKKZCbHTY6aRR46gxiqszMk5tcHjsVFxnUo8VMus4kHGVdIYVbOYYNlKmHV" crossorigin="anonymous"></script>
+    <script src="https://unpkg.com/htmx.org/dist/ext/ws.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-slate-900">
@@ -17,6 +18,12 @@
                 <label for="message"> <input type="text" name="message"></label>
                 <button type="submit">Submit</button>
             </form>
+            <div class="bg-white" hx-ext="ws" ws-connect="/ws">
+                <form ws-send>
+                    <input type="text" name="chat_message">
+                    <button type="submit">Submit</button>
+                </form>
+            </div>
         </div> 
     </div>
 </body>

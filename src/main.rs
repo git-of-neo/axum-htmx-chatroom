@@ -1,7 +1,18 @@
-use std::sync::{Arc, Mutex};
+use std::{
+    ops::ControlFlow,
+    sync::{Arc, Mutex},
+};
 
 use askama::Template;
-use axum::{extract::State, http::StatusCode, routing, Form};
+use askama_axum::IntoResponse;
+use axum::{
+    extract::{
+        ws::{Message, WebSocket},
+        State, WebSocketUpgrade,
+    },
+    http::StatusCode,
+    routing, Error, Form,
+};
 use serde::Deserialize;
 
 struct AppState {
@@ -32,12 +43,44 @@ async fn main() {
         .route("/", routing::get(index))
         .route("/chat", routing::get(chat))
         .route("/chat", routing::post(create_chat))
+        .route("/ws", routing::get(ws_handler))
         .with_state(state);
 
     axum::Server::bind(&"0.0.0.0:3000".parse().unwrap())
         .serve(app.into_make_service())
         .await
         .unwrap();
+}
+
+#[derive(Deserialize, Debug)]
+struct WsPayload {
+    chat_message: String,
+}
+
+async fn ws_handler(ws: WebSocketUpgrade, State(state): State<Arc<AppState>>) -> impl IntoResponse {
+    ws.on_upgrade(|socket| websocket(socket, state))
+}
+
+fn process_message(msg: Result<Message, Error>) -> ControlFlow<(), WsPayload> {
+    if let Ok(Message::Text(txt)) = msg {
+        return ControlFlow::Continue(serde_json::from_str::<WsPayload>(txt.as_str()).unwrap());
+    }
+    ControlFlow::Break(())
+}
+
+fn broadcast_changes() {
+    todo!()
+}
+
+async fn websocket(mut socket: WebSocket, state: Arc<AppState>) {
+    while let Some(msg) = socket.recv().await {
+        let cont = process_message(msg);
+        if let ControlFlow::Continue(payload) = cont {
+            state.msgs.lock().unwrap().push(payload.chat_message)
+        } else {
+            return;
+        }
+    }
 }
 
 #[derive(Template)]
