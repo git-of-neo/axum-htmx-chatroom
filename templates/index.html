@@ -10,10 +10,10 @@
 <body class="bg-slate-900">
     <div id="chat_room" class="flex h-screen">
         <div class="m-auto">
-            <div class="shadow-md bg-slate-50 p-5" hx-trigger="every 5s" hx-get="/chat" hx-swap="#content">
-                 <span id="content">Hello World!</span> 
+            <div class="shadow-md bg-slate-200 p-5" hx-trigger="load" hx-get="/chat" hx-swap="#content">
+                 <div id="content"></div>
             </div>
-            <form class="bg-slate-200" hx-post="/chat" hx-swap="none">
+            <form class="bg-slate-500" hx-post="/chat" hx-swap="none">
                 <label for="message"> <input type="text" name="message"></label>
                 <button type="submit">Submit</button>
             </form>

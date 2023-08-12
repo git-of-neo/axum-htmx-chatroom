@@ -2,7 +2,6 @@ use std::sync::{Arc, Mutex};
 
 use askama::Template;
 use axum::{extract::State, http::StatusCode, routing, Form};
-use rand::Rng;
 use serde::Deserialize;
 
 struct AppState {
@@ -43,26 +42,22 @@ async fn main() {
 
 #[derive(Template)]
 #[template(path = "index.html")]
-struct IndexTemplate<'a> {
-    name: &'a str,
-}
+struct IndexTemplate {}
 
-async fn index() -> IndexTemplate<'static> {
-    IndexTemplate { name: "John Doe" }
+async fn index() -> IndexTemplate {
+    IndexTemplate {}
 }
 
 #[derive(Template)]
 #[template(path = "chat.html")]
 struct ChatTemplate {
-    msg: String,
+    msgs: Vec<String>,
 }
 
 async fn chat<'a>(State(state): State<Arc<AppState>>) -> ChatTemplate {
     let msgs = state.msgs.lock().unwrap();
-    let msg = &msgs[rand::thread_rng().gen_range(0..msgs.len())];
-
     ChatTemplate {
-        msg: msg.to_string(),
+        msgs: msgs.to_vec(),
     }
 }
 

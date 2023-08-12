@@ -1,2 +1,5 @@
-<span>{{msg}}</span>
-
+<div id="content">
+    {% for msg in msgs %}
+    <div class="p-3 bg-white rounded-lg mb-3"> {{ msg }} </div>
+    {% endfor %}
+</div>
