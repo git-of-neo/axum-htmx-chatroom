@@ -1,7 +1,4 @@
-use futures::{
-    sink::SinkExt,
-    stream::{SplitSink, SplitStream, StreamExt},
-};
+use futures::{sink::SinkExt, stream::StreamExt};
 use std::{
     ops::ControlFlow,
     sync::{Arc, Mutex},
@@ -14,8 +11,7 @@ use axum::{
         ws::{Message, WebSocket},
         State, WebSocketUpgrade,
     },
-    http::StatusCode,
-    routing, Error, Form,
+    routing, Error,
 };
 use serde::Deserialize;
 use tokio::sync::broadcast;
@@ -50,7 +46,6 @@ async fn main() {
     let app = axum::Router::new()
         .route("/", routing::get(index))
         .route("/chat", routing::get(chat))
-        .route("/chat", routing::post(create_chat))
         .route("/ws", routing::get(ws_handler))
         .with_state(state);
 
@@ -77,8 +72,10 @@ fn process_message(msg: Result<Message, Error>) -> ControlFlow<(), WsPayload> {
 }
 
 #[derive(Template)]
-#[template(path = "placeholder.html")]
-struct PlaceHolderTemplate {}
+#[template(path = "new_chat.html")]
+struct NewChatTemplate {
+    msg: String,
+}
 
 async fn websocket(socket: WebSocket, state: Arc<AppState>) {
     let (mut sender, mut receiver) = socket.split();
@@ -95,8 +92,11 @@ async fn websocket(socket: WebSocket, state: Arc<AppState>) {
     while let Some(msg) = receiver.next().await {
         let cont = process_message(msg);
         if let ControlFlow::Continue(payload) = cont {
-            state.msgs.lock().unwrap().push(payload.chat_message);
-            let _ = state.tx.send(PlaceHolderTemplate {}.render().unwrap());
+            let msg = payload.chat_message;
+            state.msgs.lock().unwrap().push(msg.clone());
+            let _ = state
+                .tx
+                .send(NewChatTemplate { msg: msg }.render().unwrap());
         } else {
             break;
         }
@@ -124,18 +124,4 @@ async fn chat<'a>(State(state): State<Arc<AppState>>) -> ChatTemplate {
     ChatTemplate {
         msgs: msgs.to_vec(),
     }
-}
-
-#[derive(Deserialize)]
-struct NewChat {
-    message: String,
-}
-
-async fn create_chat(
-    State(state): State<Arc<AppState>>,
-    Form(chat): Form<NewChat>,
-) -> (StatusCode, ()) {
-    let mut msgs = state.msgs.lock().unwrap();
-    msgs.push(chat.message.to_owned());
-    (StatusCode::CREATED, ())
 }
