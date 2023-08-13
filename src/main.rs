@@ -1,3 +1,7 @@
+use futures::{
+    sink::SinkExt,
+    stream::{SplitSink, SplitStream, StreamExt},
+};
 use std::{
     ops::ControlFlow,
     sync::{Arc, Mutex},
@@ -14,13 +18,16 @@ use axum::{
     routing, Error, Form,
 };
 use serde::Deserialize;
+use tokio::sync::broadcast;
 
 struct AppState {
     msgs: Mutex<Vec<String>>,
+    tx: broadcast::Sender<String>,
 }
 
 #[tokio::main]
 async fn main() {
+    let (tx, _rx) = broadcast::channel(100);
     let state = Arc::new(AppState {
         msgs: Mutex::new(Vec::from(
             [
@@ -37,6 +44,7 @@ async fn main() {
             ]
             .map(|s| s.to_owned()),
         )),
+        tx: tx,
     });
 
     let app = axum::Router::new()
@@ -68,19 +76,33 @@ fn process_message(msg: Result<Message, Error>) -> ControlFlow<(), WsPayload> {
     ControlFlow::Break(())
 }
 
-fn broadcast_changes() {
-    todo!()
-}
+#[derive(Template)]
+#[template(path = "placeholder.html")]
+struct PlaceHolderTemplate {}
 
-async fn websocket(mut socket: WebSocket, state: Arc<AppState>) {
-    while let Some(msg) = socket.recv().await {
+async fn websocket(socket: WebSocket, state: Arc<AppState>) {
+    let (mut sender, mut receiver) = socket.split();
+
+    let mut rx = state.tx.subscribe();
+    let sync_task = tokio::spawn(async move {
+        while let Ok(msg) = rx.recv().await {
+            if sender.send(Message::Text(msg)).await.is_err() {
+                break;
+            }
+        }
+    });
+
+    while let Some(msg) = receiver.next().await {
         let cont = process_message(msg);
         if let ControlFlow::Continue(payload) = cont {
-            state.msgs.lock().unwrap().push(payload.chat_message)
+            state.msgs.lock().unwrap().push(payload.chat_message);
+            let _ = state.tx.send(PlaceHolderTemplate {}.render().unwrap());
         } else {
-            return;
+            break;
         }
     }
+
+    sync_task.abort()
 }
 
 #[derive(Template)]
