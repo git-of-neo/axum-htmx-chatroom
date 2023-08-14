@@ -1,5 +1,9 @@
 use futures::{sink::SinkExt, stream::StreamExt};
+use rand::{distributions::Alphanumeric, Rng};
 use std::{
+    collections::HashMap,
+    fmt::{self, Display},
+    hash::{Hash, Hasher},
     ops::ControlFlow,
     sync::{Arc, Mutex},
 };
@@ -11,7 +15,8 @@ use axum::{
         ws::{Message, WebSocket},
         State, WebSocketUpgrade,
     },
-    routing, Error,
+    http::{header::SET_COOKIE, HeaderMap},
+    routing, Error, Form,
 };
 use serde::Deserialize;
 use tokio::sync::broadcast;
@@ -19,6 +24,7 @@ use tokio::sync::broadcast;
 struct AppState {
     msgs: Mutex<Vec<String>>,
     tx: broadcast::Sender<String>,
+    login_manager: LoginManager<'static>,
 }
 
 #[tokio::main]
@@ -41,12 +47,17 @@ async fn main() {
             .map(|s| s.to_owned()),
         )),
         tx: tx,
+        login_manager: LoginManager {
+            store: HashMap::new(),
+        },
     });
 
     let app = axum::Router::new()
         .route("/", routing::get(index))
         .route("/chat", routing::get(chat))
         .route("/ws", routing::get(ws_handler))
+        .route("/login", routing::get(login))
+        .route("/login", routing::post(try_login))
         .with_state(state);
 
     axum::Server::bind(&"0.0.0.0:3000".parse().unwrap())
@@ -119,9 +130,103 @@ struct ChatTemplate {
     msgs: Vec<String>,
 }
 
-async fn chat<'a>(State(state): State<Arc<AppState>>) -> ChatTemplate {
+async fn chat(State(state): State<Arc<AppState>>) -> ChatTemplate {
     let msgs = state.msgs.lock().unwrap();
     ChatTemplate {
         msgs: msgs.to_vec(),
     }
+}
+
+struct User<'a> {
+    email: &'a str,
+    password: &'a str,
+}
+
+impl Hash for User<'_> {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.email.hash(state)
+    }
+}
+
+struct SessionId(String);
+
+impl Display for SessionId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0.clone())
+    }
+}
+
+fn generate_session_id(user: &User) -> SessionId {
+    let mut rng = rand::thread_rng();
+    SessionId(
+        (0..13)
+            .map(|_| rng.sample(Alphanumeric))
+            .map(char::from)
+            .collect::<String>(),
+    )
+}
+
+fn compare_password<'a>(a: &'a str, b: &'a str) -> bool {
+    a == b
+}
+
+struct LoginManager<'a> {
+    store: HashMap<&'a str, User<'a>>,
+}
+
+impl LoginManager<'_> {
+    async fn get_user<'a>(&self, email: &str, password: &str) -> Option<&User> {
+        if let Some(user) = self.store.get(email) {
+            if compare_password(&user.email, password) {
+                return Some(user);
+            }
+        }
+        None
+    }
+}
+
+#[derive(Deserialize)]
+struct LoginForm {
+    email: String,
+    password: String,
+}
+
+#[derive(Template)]
+#[template(path = "login_attempt.html")]
+struct LoginAttempt {
+    success: bool,
+}
+
+async fn try_login(
+    State(state): State<Arc<AppState>>,
+    Form(credentials): Form<LoginForm>,
+) -> impl IntoResponse {
+    let LoginForm { email, password } = credentials;
+    let mut headers = HeaderMap::new();
+    let session_id = match state
+        .login_manager
+        .get_user(email.as_str(), password.as_str())
+        .await
+    {
+        Some(user) => Some(generate_session_id(&user)),
+        None => None,
+    };
+
+    let success = session_id.is_some();
+    if let Some(session_id) = session_id {
+        headers.insert(
+            SET_COOKIE,
+            format!("user_id={}", session_id).parse().unwrap(),
+        );
+    }
+
+    (headers, LoginAttempt { success })
+}
+
+#[derive(Template)]
+#[template(path = "login.html")]
+struct LoginTemplate {}
+
+async fn login() -> LoginTemplate {
+    LoginTemplate {}
 }
