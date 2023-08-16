@@ -1,0 +1,31 @@
+<div hx-target="this" id="widget" class="w-full max-w-xs p-4 bg-gray-800 rounded-lg shadow-md">
+    <h2 class="text-2xl font-semibold text-white mb-4">Create an account</h2>
+    <form id="register-form" hx-post="/register" hx-swap="outerHTML" hx-history="false">
+        <div class="mb-4">
+            <label for="email" class="block text-sm font-medium text-gray-300">Your email</label>
+            <input type="email" id="email" name="email"
+                class="mt-1 p-2 w-full border border-gray-600 rounded-md bg-gray-700 text-white">
+            <div class="mt-2 text-sm text-red-500">
+                {% if email_taken %} Email is taken! {% endif %}
+            </div>
+        </div>
+
+        <div class="mb-4">
+            <label for="password" class="block text-sm font-medium text-gray-300">Password</label>
+            <input type="password" name="password"
+                class="mt-1 p-2 w-full border border-gray-600 rounded-md bg-gray-700 text-white">
+        </div>
+
+        <div class="mb-4">
+            <label for="confirm_password" class="block text-sm font-medium text-gray-300">Confrim password</label>
+            <input type="password" name="confirm_password"
+                class="mt-1 p-2 w-full border border-gray-600 rounded-md bg-gray-700 text-white">
+            <div class="mt-2 text-sm text-red-500">
+                {% if mismatch_passwords %} Passwords do not match! {% endif %}
+            </div>
+        </div>
+
+        <button type="submit" class="w-full bg-blue-500 text-white py-2 rounded-md hover:bg-blue-600">Create an account</button>
+        <a hx-get="/login" hx-swap="outerHTML" class="mt-2 text-2xl text-gray-400 hover:text-gray-300">&larr;</a>
+    </form>
+</div>

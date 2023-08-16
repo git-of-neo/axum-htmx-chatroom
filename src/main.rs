@@ -265,13 +265,13 @@ async fn login_after_register() -> LoginTemplate {
 }
 
 #[derive(Template)]
-#[template(path = "register.html")]
-struct RegisterTemplate {
+#[template(path = "widget_register.html")]
+struct RegisterWidget {
     email_taken: bool,
     mismatch_passwords: bool,
 }
 
-impl Default for RegisterTemplate {
+impl Default for RegisterWidget {
     fn default() -> Self {
         Self {
             email_taken: false,
@@ -280,8 +280,8 @@ impl Default for RegisterTemplate {
     }
 }
 
-async fn register() -> RegisterTemplate {
-    RegisterTemplate {
+async fn register() -> RegisterWidget {
+    RegisterWidget {
         ..Default::default()
     }
 }
@@ -316,21 +316,21 @@ async fn try_register(
     let body = match user {
         Ok(_) => "".to_owned(),
 
-        Err(ErrorKind::EmailTaken) => RegisterTemplate {
+        Err(ErrorKind::EmailTaken) => RegisterWidget {
             email_taken: true,
             ..Default::default()
         }
         .render()
         .unwrap(),
 
-        Err(ErrorKind::PasswordMismatch) => RegisterTemplate {
+        Err(ErrorKind::PasswordMismatch) => RegisterWidget {
             mismatch_passwords: true,
             ..Default::default()
         }
         .render()
         .unwrap(),
 
-        Err(ErrorKind::EmailTakenAndPasswordMismatch) => RegisterTemplate {
+        Err(ErrorKind::EmailTakenAndPasswordMismatch) => RegisterWidget {
             email_taken: true,
             mismatch_passwords: true,
         }
