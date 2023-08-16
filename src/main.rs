@@ -1,3 +1,4 @@
+use axum::response::{Html, IntoResponse};
 use futures::{sink::SinkExt, stream::StreamExt};
 use rand::{distributions::Alphanumeric, Rng};
 use std::{
@@ -9,7 +10,6 @@ use std::{
 };
 
 use askama::Template;
-use askama_axum::IntoResponse;
 use axum::{
     extract::{
         ws::{Message, WebSocket},
@@ -58,6 +58,8 @@ async fn main() {
         .route("/ws", routing::get(ws_handler))
         .route("/login", routing::get(login))
         .route("/login", routing::post(try_login))
+        .route("/register", routing::get(register))
+        .route("/register", routing::post(try_register))
         .with_state(state);
 
     axum::Server::bind(&"0.0.0.0:3000".parse().unwrap())
@@ -170,18 +172,45 @@ fn compare_password<'a>(a: &'a str, b: &'a str) -> bool {
     a == b
 }
 
+#[derive(Debug)]
+enum ErrorKind {
+    EmailTaken,
+    PasswordMismatch,
+    EmailTakenAndPasswordMismatch,
+}
+
+impl fmt::Display for ErrorKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Email is already taken by another user")
+    }
+}
+
 struct LoginManager<'a> {
     store: HashMap<&'a str, User<'a>>,
 }
 
 impl LoginManager<'_> {
-    async fn get_user<'a>(&self, email: &str, password: &str) -> Option<&User> {
+    async fn get_user(&self, email: &str, password: &str) -> Option<&User> {
         if let Some(user) = self.store.get(email) {
             if compare_password(&user.email, password) {
                 return Some(user);
             }
         }
         None
+    }
+
+    async fn new_user(
+        &self,
+        email: &str,
+        password: &str,
+        confirm_password: &str,
+    ) -> Result<(), ErrorKind> {
+        match (self.store.contains_key(email), password != confirm_password) {
+            (true, true) => Err(ErrorKind::EmailTakenAndPasswordMismatch),
+            (false, true) => Err(ErrorKind::PasswordMismatch),
+            (true, false) => Err(ErrorKind::EmailTaken),
+            (false, false) => Ok(()),
+        }
     }
 }
 
@@ -229,4 +258,85 @@ struct LoginTemplate {}
 
 async fn login() -> LoginTemplate {
     LoginTemplate {}
+}
+
+async fn login_after_register() -> LoginTemplate {
+    LoginTemplate {}
+}
+
+#[derive(Template)]
+#[template(path = "register.html")]
+struct RegisterTemplate {
+    email_taken: bool,
+    mismatch_passwords: bool,
+}
+
+impl Default for RegisterTemplate {
+    fn default() -> Self {
+        Self {
+            email_taken: false,
+            mismatch_passwords: false,
+        }
+    }
+}
+
+async fn register() -> RegisterTemplate {
+    RegisterTemplate {
+        ..Default::default()
+    }
+}
+
+#[derive(Deserialize)]
+struct RegisterUserForm {
+    email: String,
+    password: String,
+    confirm_password: String,
+}
+
+async fn try_register(
+    State(state): State<Arc<AppState>>,
+    Form(form): Form<RegisterUserForm>,
+) -> impl IntoResponse {
+    let RegisterUserForm {
+        email,
+        password,
+        confirm_password,
+    } = form;
+
+    let mut header = HeaderMap::new();
+    let user = state
+        .login_manager
+        .new_user(&email, &password, &confirm_password)
+        .await;
+
+    if user.is_ok() {
+        header.insert("HX-Redirect", "/login".parse().unwrap());
+    }
+
+    let body = match user {
+        Ok(_) => "".to_owned(),
+
+        Err(ErrorKind::EmailTaken) => RegisterTemplate {
+            email_taken: true,
+            ..Default::default()
+        }
+        .render()
+        .unwrap(),
+
+        Err(ErrorKind::PasswordMismatch) => RegisterTemplate {
+            mismatch_passwords: true,
+            ..Default::default()
+        }
+        .render()
+        .unwrap(),
+
+        Err(ErrorKind::EmailTakenAndPasswordMismatch) => RegisterTemplate {
+            email_taken: true,
+            mismatch_passwords: true,
+        }
+        .render()
+        .unwrap(),
+    };
+
+    (header, Html(body).into_response())
 }

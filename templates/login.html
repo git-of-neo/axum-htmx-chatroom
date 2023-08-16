@@ -8,7 +8,7 @@
     <title>Document</title>
 </head>
 <body class="bg-gray-900 flex justify-center items-center h-screen">
-    <div class="w-full max-w-xs p-4 bg-gray-800 rounded-lg shadow-md">
+    <div id="widget" class="w-full max-w-xs p-4 bg-gray-800 rounded-lg shadow-md">
       <h2 class="text-2xl font-semibold text-white mb-4">Login</h2>
       <form hx-post="/login" hx-swap="none">
         <div class="mb-4">
@@ -24,6 +24,10 @@
            <span id="error-msg"></span>
         </div>
       </form>
+      <p class="text-sm mt-4 text-gray-400">
+        Don't have an account? 
+        <a href="/register" class="font-medium text-blue-500 hover:underline">Register here</a>.
+      </p>
     </div>
 </body>
 </html>
