@@ -3,7 +3,7 @@
     <form id="register-form" hx-post="/register" hx-swap="outerHTML" hx-history="false">
         <div class="mb-4">
             <label for="email" class="block text-sm font-medium text-gray-300">Your email</label>
-            <input type="email" id="email" name="email"
+            <input type="email" id="email" name="email" value="{{ email_cache }}"
                 class="mt-1 p-2 w-full border border-gray-600 rounded-md bg-gray-700 text-white">
             <div class="mt-2 text-sm text-red-500">
                 {% if email_taken %} Email is taken! {% endif %}

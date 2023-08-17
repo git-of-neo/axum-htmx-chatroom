@@ -267,6 +267,7 @@ async fn login_after_register() -> LoginTemplate {
 #[derive(Template)]
 #[template(path = "widget_register.html")]
 struct RegisterWidget {
+    email_cache: String,
     email_taken: bool,
     mismatch_passwords: bool,
 }
@@ -274,6 +275,7 @@ struct RegisterWidget {
 impl Default for RegisterWidget {
     fn default() -> Self {
         Self {
+            email_cache: String::new(),
             email_taken: false,
             mismatch_passwords: false,
         }
@@ -318,6 +320,7 @@ async fn try_register(
 
         Err(ErrorKind::EmailTaken) => RegisterWidget {
             email_taken: true,
+            email_cache: email,
             ..Default::default()
         }
         .render()
@@ -325,6 +328,7 @@ async fn try_register(
 
         Err(ErrorKind::PasswordMismatch) => RegisterWidget {
             mismatch_passwords: true,
+            email_cache: email,
             ..Default::default()
         }
         .render()
@@ -332,6 +336,7 @@ async fn try_register(
 
         Err(ErrorKind::EmailTakenAndPasswordMismatch) => RegisterWidget {
             email_taken: true,
+            email_cache: email,
             mismatch_passwords: true,
         }
         .render()
