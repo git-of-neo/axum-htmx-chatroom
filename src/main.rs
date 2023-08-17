@@ -6,7 +6,7 @@ use std::{
     fmt::{self, Display},
     hash::{Hash, Hasher},
     ops::ControlFlow,
-    sync::{Arc, Mutex},
+    sync::Arc,
 };
 
 use askama::Template;
@@ -19,12 +19,12 @@ use axum::{
     routing, Error, Form,
 };
 use serde::Deserialize;
-use tokio::sync::broadcast;
+use tokio::sync::{broadcast, Mutex};
 
 struct AppState {
     msgs: Mutex<Vec<String>>,
     tx: broadcast::Sender<String>,
-    login_manager: LoginManager<'static>,
+    login_manager: Mutex<LoginManager>,
 }
 
 #[tokio::main]
@@ -47,9 +47,9 @@ async fn main() {
             .map(|s| s.to_owned()),
         )),
         tx: tx,
-        login_manager: LoginManager {
+        login_manager: Mutex::new(LoginManager {
             store: HashMap::new(),
-        },
+        }),
     });
 
     let app = axum::Router::new()
@@ -106,7 +106,7 @@ async fn websocket(socket: WebSocket, state: Arc<AppState>) {
         let cont = process_message(msg);
         if let ControlFlow::Continue(payload) = cont {
             let msg = payload.chat_message;
-            state.msgs.lock().unwrap().push(msg.clone());
+            state.msgs.lock().await.push(msg.clone());
             let _ = state
                 .tx
                 .send(NewChatTemplate { msg: msg }.render().unwrap());
@@ -133,18 +133,27 @@ struct ChatTemplate {
 }
 
 async fn chat(State(state): State<Arc<AppState>>) -> ChatTemplate {
-    let msgs = state.msgs.lock().unwrap();
+    let msgs = state.msgs.lock().await;
     ChatTemplate {
         msgs: msgs.to_vec(),
     }
 }
 
-struct User<'a> {
-    email: &'a str,
-    password: &'a str,
+struct User {
+    email: String,
+    password: String,
 }
 
-impl Hash for User<'_> {
+impl User {
+    fn new(email: &str, password: &str) -> Self {
+        Self {
+            email: email.to_owned(),
+            password: password.to_owned(),
+        }
+    }
+}
+
+impl Hash for User {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.email.hash(state)
     }
@@ -185,11 +194,11 @@ impl fmt::Display for ErrorKind {
     }
 }
 
-struct LoginManager<'a> {
-    store: HashMap<&'a str, User<'a>>,
+struct LoginManager {
+    store: HashMap<String, User>,
 }
 
-impl LoginManager<'_> {
+impl LoginManager {
     async fn get_user(&self, email: &str, password: &str) -> Option<&User> {
         if let Some(user) = self.store.get(email) {
             if compare_password(&user.email, password) {
@@ -200,17 +209,21 @@ impl LoginManager<'_> {
     }
 
     async fn new_user(
-        &self,
+        &mut self,
         email: &str,
         password: &str,
         confirm_password: &str,
     ) -> Result<(), ErrorKind> {
-        match (self.store.contains_key(email), password != confirm_password) {
+        let r = match (self.store.contains_key(email), password != confirm_password) {
             (true, true) => Err(ErrorKind::EmailTakenAndPasswordMismatch),
             (false, true) => Err(ErrorKind::PasswordMismatch),
             (true, false) => Err(ErrorKind::EmailTaken),
             (false, false) => Ok(()),
-        }
+        };
+        self.store
+            .insert(email.to_owned(), User::new(email, password));
+
+        r
     }
 }
 
@@ -234,6 +247,8 @@ async fn try_login(
     let mut headers = HeaderMap::new();
     let session_id = match state
         .login_manager
+        .lock()
+        .await
         .get_user(email.as_str(), password.as_str())
         .await
     {
@@ -304,6 +319,8 @@ async fn try_register(
     let mut header = HeaderMap::new();
     let user = state
         .login_manager
+        .lock()
+        .await
         .new_user(&email, &password, &confirm_password)
         .await;
 
