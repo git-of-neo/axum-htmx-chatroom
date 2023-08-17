@@ -201,7 +201,7 @@ struct LoginManager {
 impl LoginManager {
     async fn get_user(&self, email: &str, password: &str) -> Option<&User> {
         if let Some(user) = self.store.get(email) {
-            if compare_password(&user.email, password) {
+            if compare_password(&user.password, password) {
                 return Some(user);
             }
         }
