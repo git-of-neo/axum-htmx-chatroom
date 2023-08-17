@@ -260,10 +260,6 @@ async fn login() -> LoginTemplate {
     LoginTemplate {}
 }
 
-async fn login_after_register() -> LoginTemplate {
-    LoginTemplate {}
-}
-
 #[derive(Template)]
 #[template(path = "widget_register.html")]
 struct RegisterWidget {
