@@ -251,27 +251,26 @@ async fn try_login(
     Form(credentials): Form<LoginForm>,
 ) -> impl IntoResponse {
     let LoginForm { email, password } = credentials;
+    let manager = state.login_manager.lock().await;
+    let user = manager.get_user(email.as_str(), password.as_str()).await;
+
     let mut headers = HeaderMap::new();
-    let session_id = match state
-        .login_manager
-        .lock()
-        .await
-        .get_user(email.as_str(), password.as_str())
-        .await
-    {
-        Some(user) => Some(generate_session_id(&user)),
-        None => None,
-    };
-
-    let success = session_id.is_some();
-    if let Some(session_id) = session_id {
-        headers.insert(
-            SET_COOKIE,
-            format!("user_id={}", session_id).parse().unwrap(),
-        );
+    match user {
+        Some(user) => {
+            headers.insert("HX-Redirect", "/".parse().unwrap());
+            headers.insert(
+                SET_COOKIE,
+                format!("session_id={}", generate_session_id(user))
+                    .parse()
+                    .unwrap(),
+            );
+            (headers, Html("").into_response())
+        }
+        None => (
+            headers,
+            Html(LoginAttempt { success: false }.render().unwrap()).into_response(),
+        ),
     }
-
-    (headers, LoginAttempt { success })
 }
 
 #[derive(Template)]
