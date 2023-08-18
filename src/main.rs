@@ -28,8 +28,15 @@ struct AppState {
 }
 
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<(), Error> {
     let (tx, _rx) = broadcast::channel(100);
+    let mut manager = LoginManager {
+        store: HashMap::new(),
+    };
+    let _ = manager
+        .new_user("test@example.com", "test123", "test123")
+        .await;
+
     let state = Arc::new(AppState {
         msgs: Mutex::new(Vec::from(
             [
@@ -47,9 +54,7 @@ async fn main() {
             .map(|s| s.to_owned()),
         )),
         tx: tx,
-        login_manager: Mutex::new(LoginManager {
-            store: HashMap::new(),
-        }),
+        login_manager: Mutex::new(manager),
     });
 
     let app = axum::Router::new()
@@ -66,6 +71,8 @@ async fn main() {
         .serve(app.into_make_service())
         .await
         .unwrap();
+
+    Ok(())
 }
 
 #[derive(Deserialize, Debug)]
