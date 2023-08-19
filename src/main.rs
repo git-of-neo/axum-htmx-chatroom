@@ -1,4 +1,7 @@
-use axum::response::{Html, IntoResponse};
+use axum::{
+    http::{header, Request, Response},
+    response::{Html, IntoResponse},
+};
 use futures::{sink::SinkExt, stream::StreamExt};
 use rand::{distributions::Alphanumeric, Rng};
 use std::{
@@ -16,10 +19,13 @@ use axum::{
         State, WebSocketUpgrade,
     },
     http::{header::SET_COOKIE, HeaderMap},
-    routing, Error, Form,
+    middleware, routing, Error, Form,
 };
+use axum_extra::extract::cookie;
 use serde::Deserialize;
 use tokio::sync::{broadcast, Mutex};
+
+static SESSION_ID_KEY: &'static str = "session_id";
 
 struct AppState {
     msgs: Mutex<Vec<String>>,
@@ -65,6 +71,8 @@ async fn main() -> Result<(), Error> {
         .route("/login", routing::post(try_login))
         .route("/register", routing::get(register))
         .route("/register", routing::post(try_register))
+        // layers (middlewares) are from bottom to top
+        .layer(middleware::from_fn(authenticate_session_id))
         .with_state(state);
 
     axum::Server::bind(&"0.0.0.0:3000".parse().unwrap())
@@ -73,6 +81,33 @@ async fn main() -> Result<(), Error> {
         .unwrap();
 
     Ok(())
+}
+
+#[derive(Template)]
+#[template(path = "redirect.html")]
+struct Redirect {
+    url: String,
+}
+
+async fn authenticate_session_id<B>(
+    jar: cookie::CookieJar,
+    request: Request<B>,
+    next: middleware::Next<B>,
+) -> impl IntoResponse {
+    let url = request.uri().path();
+
+    if url != "/login" {
+        let id = jar.get(SESSION_ID_KEY);
+
+        if id.is_none() {
+            return Redirect {
+                url: "/login".to_owned(),
+            }
+            .into_response();
+        }
+    }
+
+    next.run(request).await
 }
 
 #[derive(Deserialize, Debug)]
@@ -262,7 +297,7 @@ async fn try_login(
             headers.insert("HX-Redirect", "/".parse().unwrap());
             headers.insert(
                 SET_COOKIE,
-                format!("session_id={}", generate_session_id(user))
+                format!("{}={}", SESSION_ID_KEY, generate_session_id(user))
                     .parse()
                     .unwrap(),
             );
