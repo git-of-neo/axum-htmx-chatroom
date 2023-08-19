@@ -1,6 +1,7 @@
 use axum::{
-    http::{header, Request, Response},
+    http::Request,
     response::{Html, IntoResponse},
+    Extension,
 };
 use futures::{sink::SinkExt, stream::StreamExt};
 use rand::{distributions::Alphanumeric, Rng};
@@ -85,25 +86,39 @@ async fn main() -> Result<(), Error> {
 
 #[derive(Template)]
 #[template(path = "redirect.html")]
-struct Redirect {
+struct RedirectTemplate {
     url: String,
+}
+
+#[derive(Clone)]
+struct CurrentUser(String);
+
+impl Display for CurrentUser {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
 }
 
 async fn authenticate_session_id<B>(
     jar: cookie::CookieJar,
-    request: Request<B>,
+    mut request: Request<B>,
     next: middleware::Next<B>,
 ) -> impl IntoResponse {
     let url = request.uri().path();
 
     if url != "/login" {
-        let id = jar.get(SESSION_ID_KEY);
-
-        if id.is_none() {
-            return Redirect {
-                url: "/login".to_owned(),
+        match jar.get(SESSION_ID_KEY) {
+            Some(&ref cookie) => {
+                request
+                    .extensions_mut()
+                    .insert(CurrentUser(cookie.to_string()));
             }
-            .into_response();
+            None => {
+                return RedirectTemplate {
+                    url: "/login".to_owned(),
+                }
+                .into_response();
+            }
         }
     }
 
