@@ -227,8 +227,10 @@ impl LoginManager {
             (true, false) => Err(ErrorKind::EmailTaken),
             (false, false) => Ok(()),
         };
-        self.store
-            .insert(email.to_owned(), User::new(email, password));
+        if r.is_ok() {
+            self.store
+                .insert(email.to_owned(), User::new(email, password));
+        }
 
         r
     }
