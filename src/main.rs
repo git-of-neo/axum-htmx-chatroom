@@ -36,6 +36,8 @@ struct AppState {
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
+    secrets_validator::check_env!();
+
     let (tx, _rx) = broadcast::channel(100);
     let mut manager = LoginManager {
         store: HashMap::new(),
