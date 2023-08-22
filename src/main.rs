@@ -4,14 +4,8 @@ use axum::{
     Extension,
 };
 use futures::{sink::SinkExt, stream::StreamExt};
-use rand::{distributions::Alphanumeric, Rng};
-use std::{
-    collections::HashMap,
-    fmt::{self, Display},
-    hash::{Hash, Hasher},
-    ops::ControlFlow,
-    sync::Arc,
-};
+use sqlx::SqlitePool;
+use std::{ops::ControlFlow, sync::Arc};
 
 use askama::Template;
 use axum::{
@@ -20,51 +14,49 @@ use axum::{
         State, WebSocketUpgrade,
     },
     http::{header::SET_COOKIE, HeaderMap},
-    middleware, routing, Error, Form,
+    middleware, routing, Form,
 };
 use axum_extra::extract::cookie;
 use serde::Deserialize;
-use tokio::sync::{broadcast, Mutex};
+use tokio::sync::broadcast;
+mod manager;
+use manager::{
+    login_manager::{self, LoginManager},
+    session_manager::{SessionId, SessionManager},
+};
 
 static SESSION_ID_KEY: &'static str = "session_id";
 
+#[derive(Clone)]
 struct AppState {
-    msgs: Mutex<Vec<String>>,
     tx: broadcast::Sender<String>,
-    login_manager: Mutex<LoginManager>,
+    pool: sqlx::SqlitePool,
+}
+
+impl AppState {
+    fn new(tx: broadcast::Sender<String>, pool: sqlx::SqlitePool) -> Self {
+        Self { tx: tx, pool: pool }
+    }
 }
 
 #[tokio::main]
-async fn main() -> Result<(), Error> {
+async fn main() -> anyhow::Result<()> {
     secrets_validator::check_env!();
 
-    let (tx, _rx) = broadcast::channel(100);
-    let mut manager = LoginManager {
-        store: HashMap::new(),
-    };
-    let _ = manager
-        .new_user("test@example.com", "test123", "test123")
-        .await;
+    let pool = SqlitePool::connect(&dotenvy::var("DATABASE_URL")?).await?;
+    sqlx::migrate!().run(&pool).await?;
 
-    let state = Arc::new(AppState {
-        msgs: Mutex::new(Vec::from(
-            [
-                "Hey there! How's your day going?",
-                "Did you catch that new movie everyone's talking about?",
-                "Pizza or tacos? It's the ultimate food debate!",
-                "Just wanted to say hi and spread some positivity your way!",
-                "I'm counting down the days until the weekend. Anyone else?",
-                "Have you ever tried bungee jumping? It's on my bucket list!",
-                "Guess what? I adopted a puppy and my heart's melting.",
-                "Quick poll: Cats or dogs? Let the battle of cuteness begin!",
-                "Netflix recommendations, anyone? I've watched everything on my list.",
-                "If you could travel anywhere right now, where would you go?",
-            ]
-            .map(|s| s.to_owned()),
-        )),
-        tx: tx,
-        login_manager: Mutex::new(manager),
-    });
+    let (tx, _rx) = broadcast::channel(100);
+    let state = Arc::new(AppState::new(tx, pool));
+
+    match LoginManager::new(&state.pool)
+        .new_user("test@example.com", "test123", "test123")
+        .await
+    {
+        Ok(_) | Err(login_manager::Error::EmailTaken) => Ok(()),
+        e => e,
+    }
+    .unwrap();
 
     let app = axum::Router::new()
         .route("/", routing::get(index))
@@ -75,7 +67,10 @@ async fn main() -> Result<(), Error> {
         .route("/register", routing::get(register))
         .route("/register", routing::post(try_register))
         // layers (middlewares) are from bottom to top
-        .layer(middleware::from_fn(authenticate_session_id))
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            authenticate_session_id,
+        ))
         .with_state(state);
 
     axum::Server::bind(&"0.0.0.0:3000".parse().unwrap())
@@ -92,28 +87,27 @@ struct RedirectTemplate {
     url: String,
 }
 
-#[derive(Clone)]
-struct CurrentUser(String);
-
-impl Display for CurrentUser {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
-
 async fn authenticate_session_id<B>(
+    State(state): State<Arc<AppState>>,
     jar: cookie::CookieJar,
     mut request: Request<B>,
     next: middleware::Next<B>,
 ) -> impl IntoResponse {
-    let url = request.uri().path();
+    let uri = request.uri().path();
 
-    if url != "/login" {
+    if uri != "/login" && uri != "/register" {
         match jar.get(SESSION_ID_KEY) {
             Some(&ref cookie) => {
-                request
-                    .extensions_mut()
-                    .insert(CurrentUser(cookie.to_string()));
+                let user = SessionManager::new(&state.pool)
+                    .get_user(SessionId(cookie.value().to_string()))
+                    .await;
+                if user.is_err() {
+                    return RedirectTemplate {
+                        url: "/login".to_owned(),
+                    }
+                    .into_response();
+                }
+                request.extensions_mut().insert(user.unwrap());
             }
             None => {
                 return RedirectTemplate {
@@ -133,10 +127,10 @@ struct WsPayload {
 }
 
 async fn ws_handler(ws: WebSocketUpgrade, State(state): State<Arc<AppState>>) -> impl IntoResponse {
-    ws.on_upgrade(|socket| websocket(socket, state))
+    ws.on_upgrade(move |socket| websocket(socket, state))
 }
 
-fn process_message(msg: Result<Message, Error>) -> ControlFlow<(), WsPayload> {
+fn process_message(msg: Result<Message, axum::Error>) -> ControlFlow<(), WsPayload> {
     if let Ok(Message::Text(txt)) = msg {
         return ControlFlow::Continue(serde_json::from_str::<WsPayload>(txt.as_str()).unwrap());
     }
@@ -149,7 +143,7 @@ struct NewChatTemplate {
     msg: String,
 }
 
-async fn websocket(socket: WebSocket, state: Arc<AppState>) {
+async fn websocket<'a>(socket: WebSocket, state: Arc<AppState>) {
     let (mut sender, mut receiver) = socket.split();
 
     let mut rx = state.tx.subscribe();
@@ -165,7 +159,8 @@ async fn websocket(socket: WebSocket, state: Arc<AppState>) {
         let cont = process_message(msg);
         if let ControlFlow::Continue(payload) = cont {
             let msg = payload.chat_message;
-            state.msgs.lock().await.push(msg.clone());
+            todo!();
+            // state.msgs.lock().await.push(msg.clone());
             let _ = state
                 .tx
                 .send(NewChatTemplate { msg: msg }.render().unwrap());
@@ -198,96 +193,6 @@ async fn chat(State(state): State<Arc<AppState>>) -> ChatTemplate {
     }
 }
 
-struct User {
-    email: String,
-    password: String,
-}
-
-impl User {
-    fn new(email: &str, password: &str) -> Self {
-        Self {
-            email: email.to_owned(),
-            password: password.to_owned(),
-        }
-    }
-}
-
-impl Hash for User {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.email.hash(state)
-    }
-}
-
-struct SessionId(String);
-
-impl Display for SessionId {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.0.clone())
-    }
-}
-
-fn generate_session_id(user: &User) -> SessionId {
-    let mut rng = rand::thread_rng();
-    SessionId(
-        (0..13)
-            .map(|_| rng.sample(Alphanumeric))
-            .map(char::from)
-            .collect::<String>(),
-    )
-}
-
-fn compare_password<'a>(a: &'a str, b: &'a str) -> bool {
-    a == b
-}
-
-#[derive(Debug)]
-enum ErrorKind {
-    EmailTaken,
-    PasswordMismatch,
-    EmailTakenAndPasswordMismatch,
-}
-
-impl fmt::Display for ErrorKind {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Email is already taken by another user")
-    }
-}
-
-struct LoginManager {
-    store: HashMap<String, User>,
-}
-
-impl LoginManager {
-    async fn get_user(&self, email: &str, password: &str) -> Option<&User> {
-        if let Some(user) = self.store.get(email) {
-            if compare_password(&user.password, password) {
-                return Some(user);
-            }
-        }
-        None
-    }
-
-    async fn new_user(
-        &mut self,
-        email: &str,
-        password: &str,
-        confirm_password: &str,
-    ) -> Result<(), ErrorKind> {
-        let r = match (self.store.contains_key(email), password != confirm_password) {
-            (true, true) => Err(ErrorKind::EmailTakenAndPasswordMismatch),
-            (false, true) => Err(ErrorKind::PasswordMismatch),
-            (true, false) => Err(ErrorKind::EmailTaken),
-            (false, false) => Ok(()),
-        };
-        if r.is_ok() {
-            self.store
-                .insert(email.to_owned(), User::new(email, password));
-        }
-
-        r
-    }
-}
-
 #[derive(Deserialize)]
 struct LoginForm {
     email: String,
@@ -305,22 +210,30 @@ async fn try_login(
     Form(credentials): Form<LoginForm>,
 ) -> impl IntoResponse {
     let LoginForm { email, password } = credentials;
-    let manager = state.login_manager.lock().await;
-    let user = manager.get_user(email.as_str(), password.as_str()).await;
+    let user = LoginManager::new(&state.pool)
+        .get_user(email.as_str(), password.as_str())
+        .await;
 
     let mut headers = HeaderMap::new();
     match user {
-        Some(user) => {
+        Ok(user) => {
             headers.insert("HX-Redirect", "/".parse().unwrap());
             headers.insert(
                 SET_COOKIE,
-                format!("{}={}", SESSION_ID_KEY, generate_session_id(user))
-                    .parse()
-                    .unwrap(),
+                format!(
+                    "{}={}",
+                    SESSION_ID_KEY,
+                    SessionManager::new(&state.pool)
+                        .generate_session_id_for(&user)
+                        .await
+                        .unwrap()
+                )
+                .parse()
+                .unwrap(),
             );
             (headers, Html("").into_response())
         }
-        None => (
+        _ => (
             headers,
             Html(LoginAttempt { success: false }.render().unwrap()).into_response(),
         ),
@@ -377,10 +290,7 @@ async fn try_register(
     } = form;
 
     let mut header = HeaderMap::new();
-    let user = state
-        .login_manager
-        .lock()
-        .await
+    let user = LoginManager::new(&state.pool)
         .new_user(&email, &password, &confirm_password)
         .await;
 
@@ -391,7 +301,7 @@ async fn try_register(
     let body = match user {
         Ok(_) => "".to_owned(),
 
-        Err(ErrorKind::EmailTaken) => RegisterWidget {
+        Err(login_manager::Error::EmailTaken) => RegisterWidget {
             email_taken: true,
             email_cache: email,
             ..Default::default()
@@ -399,7 +309,7 @@ async fn try_register(
         .render()
         .unwrap(),
 
-        Err(ErrorKind::PasswordMismatch) => RegisterWidget {
+        Err(login_manager::Error::PasswordMismatch) => RegisterWidget {
             mismatch_passwords: true,
             email_cache: email,
             ..Default::default()
@@ -407,13 +317,15 @@ async fn try_register(
         .render()
         .unwrap(),
 
-        Err(ErrorKind::EmailTakenAndPasswordMismatch) => RegisterWidget {
+        Err(login_manager::Error::EmailTakenAndPasswordMismatch) => RegisterWidget {
             email_taken: true,
             email_cache: email,
             mismatch_passwords: true,
         }
         .render()
         .unwrap(),
+
+        _ => todo!("unhandled database error"),
     };
 
     (header, Html(body).into_response())

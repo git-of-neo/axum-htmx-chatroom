@@ -1,0 +1,13 @@
+-- Add migration script here
+CREATE TABLE IF NOT EXISTS User(
+    id INTEGER PRIMARY KEY,
+    email TEXT UNIQUE NOT NULL,
+    password TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS UserSession(
+    id INTEGER PRIMARY KEY,
+    session_id TEXT UNIQUE NOT NULL,
+    user_id INTEGER NOT NULL,
+    FOREIGN KEY(user_id) REFERENCES User(id) ON DELETE CASCADE
+);
