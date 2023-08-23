@@ -60,7 +60,7 @@ impl LoginManager<'_> {
                 .unwrap()
                 >= 1;
 
-        match (exists, compare_password(password, confirm_password)) {
+        match (exists, !compare_password(password, confirm_password)) {
             (true, true) => Err(Error::EmailTakenAndPasswordMismatch),
             (false, true) => Err(Error::PasswordMismatch),
             (true, false) => Err(Error::EmailTaken),
