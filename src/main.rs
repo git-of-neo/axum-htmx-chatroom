@@ -21,8 +21,10 @@ use serde::Deserialize;
 use tokio::sync::broadcast;
 mod manager;
 use manager::{
+    chat_manager::ChatManager,
     login_manager::{self, LoginManager},
     session_manager::{SessionId, SessionManager},
+    ChatRoom, User,
 };
 
 static SESSION_ID_KEY: &'static str = "session_id";
@@ -126,8 +128,12 @@ struct WsPayload {
     chat_message: String,
 }
 
-async fn ws_handler(ws: WebSocketUpgrade, State(state): State<Arc<AppState>>) -> impl IntoResponse {
-    ws.on_upgrade(move |socket| websocket(socket, state))
+async fn ws_handler(
+    ws: WebSocketUpgrade,
+    State(state): State<Arc<AppState>>,
+    Extension(user): Extension<User>,
+) -> impl IntoResponse {
+    ws.on_upgrade(move |socket| websocket(socket, state, user))
 }
 
 fn process_message(msg: Result<Message, axum::Error>) -> ControlFlow<(), WsPayload> {
@@ -143,7 +149,7 @@ struct NewChatTemplate {
     msg: String,
 }
 
-async fn websocket<'a>(socket: WebSocket, state: Arc<AppState>) {
+async fn websocket<'a>(socket: WebSocket, state: Arc<AppState>, user: User) {
     let (mut sender, mut receiver) = socket.split();
 
     let mut rx = state.tx.subscribe();
@@ -159,8 +165,11 @@ async fn websocket<'a>(socket: WebSocket, state: Arc<AppState>) {
         let cont = process_message(msg);
         if let ControlFlow::Continue(payload) = cont {
             let msg = payload.chat_message;
-            todo!();
-            // state.msgs.lock().await.push(msg.clone());
+            let room = ChatRoom::new();
+            ChatManager::new(&state.pool)
+                .new_chat(&user, &room, &msg)
+                .await
+                .unwrap();
             let _ = state
                 .tx
                 .send(NewChatTemplate { msg: msg }.render().unwrap());
@@ -187,10 +196,14 @@ struct ChatTemplate {
 }
 
 async fn chat(State(state): State<Arc<AppState>>) -> ChatTemplate {
-    let msgs = state.msgs.lock().await;
-    ChatTemplate {
-        msgs: msgs.to_vec(),
-    }
+    let msgs = ChatManager::new(&state.pool)
+        .list_chats(&ChatRoom::new())
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|msg| msg.message)
+        .collect();
+    ChatTemplate { msgs }
 }
 
 #[derive(Deserialize)]
