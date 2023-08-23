@@ -15,6 +15,7 @@ impl<'a> LoginManager<'a> {
 pub enum Error {
     EmailTaken,
     PasswordMismatch,
+    WrongPassword,
     EmailTakenAndPasswordMismatch,
     DatabaseError(sqlx::Error),
 }
@@ -30,14 +31,20 @@ fn compare_password<'a>(a: &'a str, b: &'a str) -> bool {
 }
 
 impl LoginManager<'_> {
-    pub async fn get_user(&self, email: &str, password: &str) -> Result<User, sqlx::Error> {
-        Ok(sqlx::query_as!(
+    pub async fn get_user(&self, email: &str, password: &str) -> Result<User, Error> {
+        let user = sqlx::query_as!(
             User,
             "SELECT id, email, password FROM User WHERE email=?",
             email
         )
         .fetch_one(self.pool)
-        .await?)
+        .await?;
+
+        if compare_password(&user.password, password) {
+            Ok(user)
+        } else {
+            Err(Error::WrongPassword)
+        }
     }
 
     pub async fn new_user(
@@ -53,7 +60,7 @@ impl LoginManager<'_> {
                 .unwrap()
                 >= 1;
 
-        match (exists, password != confirm_password) {
+        match (exists, compare_password(password, confirm_password)) {
             (true, true) => Err(Error::EmailTakenAndPasswordMismatch),
             (false, true) => Err(Error::PasswordMismatch),
             (true, false) => Err(Error::EmailTaken),
