@@ -54,7 +54,7 @@ impl SessionManager<'_> {
     pub async fn get_user(&self, session_id: SessionId) -> Result<User, Error> {
         Ok(sqlx::query_as!(
             User,
-            "SELECT u.* FROM User u JOIN UserSession s WHERE s.session_id=? LIMIT 1",
+            "SELECT * FROM User WHERE id=(SELECT user_id FROM UserSession WHERE session_id = ?)",
             session_id
         )
         .fetch_one(self.pool)

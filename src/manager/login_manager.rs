@@ -31,11 +31,13 @@ fn compare_password<'a>(a: &'a str, b: &'a str) -> bool {
 
 impl LoginManager<'_> {
     pub async fn get_user(&self, email: &str, password: &str) -> Result<User, sqlx::Error> {
-        Ok(
-            sqlx::query_as!(User, "SELECT id, email, password FROM User")
-                .fetch_one(self.pool)
-                .await?,
+        Ok(sqlx::query_as!(
+            User,
+            "SELECT id, email, password FROM User WHERE email=?",
+            email
         )
+        .fetch_one(self.pool)
+        .await?)
     }
 
     pub async fn new_user(
@@ -44,14 +46,12 @@ impl LoginManager<'_> {
         password: &str,
         confirm_password: &str,
     ) -> Result<(), Error> {
-        let exists = sqlx::query_scalar!(
-            "SELECT EXISTS(SELECT id FROM User WHERE email = ? LIMIT 1)",
-            email
-        )
-        .fetch_one(self.pool)
-        .await?
-        .unwrap()
-            >= 1;
+        let exists =
+            sqlx::query_scalar!("SELECT EXISTS(SELECT id FROM User WHERE email = ?)", email)
+                .fetch_one(self.pool)
+                .await?
+                .unwrap()
+                >= 1;
 
         match (exists, password != confirm_password) {
             (true, true) => Err(Error::EmailTakenAndPasswordMismatch),
