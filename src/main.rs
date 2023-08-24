@@ -62,7 +62,6 @@ async fn main() -> anyhow::Result<()> {
 
     let app = axum::Router::new()
         .route("/", routing::get(index))
-        .route("/chat", routing::get(chat))
         .route("/ws", routing::get(ws_handler))
         .route("/login", routing::get(login))
         .route("/login", routing::post(try_login))
@@ -75,7 +74,7 @@ async fn main() -> anyhow::Result<()> {
         ))
         .with_state(state);
 
-    axum::Server::bind(&"0.0.0.0:3000".parse().unwrap())
+    axum::Server::bind(&"0.0.0.0:3002".parse().unwrap())
         .serve(app.into_make_service())
         .await
         .unwrap();
@@ -183,19 +182,11 @@ async fn websocket<'a>(socket: WebSocket, state: Arc<AppState>, user: User) {
 
 #[derive(Template)]
 #[template(path = "index.html")]
-struct IndexTemplate {}
-
-async fn index() -> IndexTemplate {
-    IndexTemplate {}
-}
-
-#[derive(Template)]
-#[template(path = "chat.html")]
-struct ChatTemplate {
+struct IndexTemplate {
     msgs: Vec<String>,
 }
 
-async fn chat(State(state): State<Arc<AppState>>) -> ChatTemplate {
+async fn index(State(state): State<Arc<AppState>>) -> IndexTemplate {
     let msgs = ChatManager::new(&state.pool)
         .list_chats(&ChatRoom::new())
         .await
@@ -203,7 +194,7 @@ async fn chat(State(state): State<Arc<AppState>>) -> ChatTemplate {
         .into_iter()
         .map(|msg| msg.message)
         .collect();
-    ChatTemplate { msgs }
+    IndexTemplate { msgs }
 }
 
 #[derive(Deserialize)]
