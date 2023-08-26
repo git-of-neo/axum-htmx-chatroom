@@ -5,7 +5,7 @@ use axum::{
 };
 use futures::{sink::SinkExt, stream::StreamExt};
 use sqlx::SqlitePool;
-use std::sync::Arc;
+use std::{ops::ControlFlow, sync::Arc};
 
 use askama::Template;
 use axum::{
@@ -24,19 +24,19 @@ use manager::{
     chat_manager::ChatManager,
     login_manager::{self, LoginManager},
     session_manager::{SessionId, SessionManager},
-    ChatRoom, User,
+    User,
 };
 
 static SESSION_ID_KEY: &'static str = "session_id";
 
 #[derive(Clone)]
 struct AppState {
-    tx: broadcast::Sender<String>,
+    tx: broadcast::Sender<WsPayload>,
     pool: sqlx::SqlitePool,
 }
 
 impl AppState {
-    fn new(tx: broadcast::Sender<String>, pool: sqlx::SqlitePool) -> Self {
+    fn new(tx: broadcast::Sender<WsPayload>, pool: sqlx::SqlitePool) -> Self {
         Self { tx: tx, pool: pool }
     }
 }
@@ -63,6 +63,7 @@ async fn main() -> anyhow::Result<()> {
     let app = axum::Router::new()
         .route("/", routing::get(index))
         .route("/chat/:room_id", routing::get(chat))
+        .route("/ws/:room_id", routing::get(ws_handler))
         .route("/login", routing::get(login))
         .route("/login", routing::post(try_login))
         .route("/register", routing::get(register))
@@ -74,7 +75,7 @@ async fn main() -> anyhow::Result<()> {
         ))
         .with_state(state);
 
-    axum::Server::bind(&"0.0.0.0:3002".parse().unwrap())
+    axum::Server::bind(&"0.0.0.0:3000".parse().unwrap())
         .serve(app.into_make_service())
         .await
         .unwrap();
@@ -122,17 +123,32 @@ async fn authenticate_session_id<B>(
     next.run(request).await
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 struct WsPayload {
+    #[serde(deserialize_with = "i64_from_string")]
+    room_id: i64,
     chat_message: String,
+}
+
+fn i64_from_string<'de, D>(deserializer: D) -> Result<i64, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let s = String::deserialize(deserializer)?;
+
+    match s.parse::<i64>() {
+        Ok(int) => Ok(int),
+        Err(e) => Err(serde::de::Error::custom(e.to_string())),
+    }
 }
 
 async fn ws_handler(
     ws: WebSocketUpgrade,
     State(state): State<Arc<AppState>>,
     Extension(user): Extension<User>,
+    Path(room_id): Path<i64>,
 ) -> impl IntoResponse {
-    ws.on_upgrade(move |socket| websocket(socket, state, user))
+    ws.on_upgrade(move |socket| websocket(socket, state, user, room_id))
 }
 
 fn process_message(msg: Result<Message, axum::Error>) -> ControlFlow<(), WsPayload> {
@@ -148,13 +164,28 @@ struct NewChatTemplate {
     msg: String,
 }
 
-async fn websocket<'a>(socket: WebSocket, state: Arc<AppState>, user: User) {
+async fn websocket<'a>(socket: WebSocket, state: Arc<AppState>, user: User, room_id: i64) {
     let (mut sender, mut receiver) = socket.split();
+    let manager = ChatManager::new(&state.pool);
+    let room = manager.get_room(room_id).await.unwrap();
 
     let mut rx = state.tx.subscribe();
     let sync_task = tokio::spawn(async move {
-        while let Ok(msg) = rx.recv().await {
-            if sender.send(Message::Text(msg)).await.is_err() {
+        while let Ok(payload) = rx.recv().await {
+            if payload.room_id != room_id {
+                continue;
+            }
+            if sender
+                .send(Message::Text(
+                    NewChatTemplate {
+                        msg: payload.chat_message,
+                    }
+                    .render()
+                    .unwrap(),
+                ))
+                .await
+                .is_err()
+            {
                 break;
             }
         }
@@ -163,15 +194,11 @@ async fn websocket<'a>(socket: WebSocket, state: Arc<AppState>, user: User) {
     while let Some(msg) = receiver.next().await {
         let cont = process_message(msg);
         if let ControlFlow::Continue(payload) = cont {
-            let msg = payload.chat_message;
-            let room = ChatRoom::new();
-            ChatManager::new(&state.pool)
-                .new_chat(&user, &room, &msg)
+            manager
+                .new_chat(&user, &room, &payload.chat_message)
                 .await
                 .unwrap();
-            let _ = state
-                .tx
-                .send(NewChatTemplate { msg: msg }.render().unwrap());
+            let _ = state.tx.send(payload);
         } else {
             break;
         }
