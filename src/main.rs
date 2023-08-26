@@ -5,19 +5,19 @@ use axum::{
 };
 use futures::{sink::SinkExt, stream::StreamExt};
 use sqlx::SqlitePool;
-use std::{ops::ControlFlow, sync::Arc};
+use std::sync::Arc;
 
 use askama::Template;
 use axum::{
     extract::{
         ws::{Message, WebSocket},
-        State, WebSocketUpgrade,
+        Path, State, WebSocketUpgrade,
     },
     http::{header::SET_COOKIE, HeaderMap},
     middleware, routing, Form,
 };
 use axum_extra::extract::cookie;
-use serde::Deserialize;
+use serde::{Deserialize, Deserializer};
 use tokio::sync::broadcast;
 mod manager;
 use manager::{
@@ -62,7 +62,7 @@ async fn main() -> anyhow::Result<()> {
 
     let app = axum::Router::new()
         .route("/", routing::get(index))
-        .route("/ws", routing::get(ws_handler))
+        .route("/chat/:room_id", routing::get(chat))
         .route("/login", routing::get(login))
         .route("/login", routing::post(try_login))
         .route("/register", routing::get(register))
@@ -182,19 +182,34 @@ async fn websocket<'a>(socket: WebSocket, state: Arc<AppState>, user: User) {
 
 #[derive(Template)]
 #[template(path = "index.html")]
-struct IndexTemplate {
+struct IndexTemplate {}
+
+async fn index(State(state): State<Arc<AppState>>) -> IndexTemplate {
+    IndexTemplate {}
+}
+
+#[derive(Template)]
+#[template(path = "chat.html")]
+struct ChatTemplate {
+    room_id: i64,
     msgs: Vec<String>,
 }
 
-async fn index(State(state): State<Arc<AppState>>) -> IndexTemplate {
-    let msgs = ChatManager::new(&state.pool)
-        .list_chats(&ChatRoom::new())
-        .await
-        .unwrap()
-        .into_iter()
-        .map(|msg| msg.message)
-        .collect();
-    IndexTemplate { msgs }
+async fn chat(State(state): State<Arc<AppState>>, Path(room_id): Path<i64>) -> ChatTemplate {
+    let manager = ChatManager::new(&state.pool);
+    let msgs = match manager.get_room(room_id).await {
+        Ok(room) => manager
+            .list_chats(&room)
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|msg| msg.message)
+            .collect(),
+        Err(sqlx::Error::RowNotFound) => Vec::new(),
+        Err(e) => panic!("{:?}", e),
+    };
+
+    ChatTemplate { msgs, room_id }
 }
 
 #[derive(Deserialize)]

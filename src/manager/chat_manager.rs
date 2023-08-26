@@ -28,6 +28,12 @@ impl ChatManager<'_> {
         Ok(())
     }
 
+    pub async fn get_room(&self, room_id: i64) -> Result<ChatRoom, sqlx::Error> {
+        sqlx::query_as!(ChatRoom, "SELECT * FROM ChatRoom WHERE id=?;", room_id)
+            .fetch_one(self.pool)
+            .await
+    }
+
     pub async fn list_chats(&self, room: &ChatRoom) -> Result<Vec<ChatMessage>, sqlx::Error> {
         Ok(sqlx::query_as!(
             ChatMessage,

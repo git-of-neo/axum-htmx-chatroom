@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <script src="https://unpkg.com/htmx.org@1.9.4"
+        integrity="sha384-zUfuhFKKZCbHTY6aRR46gxiqszMk5tcHjsVFxnUo8VMus4kHGVdIYVbOYYNlKmHV"
+        crossorigin="anonymous"></script>
+    <script src="https://unpkg.com/htmx.org/dist/ext/ws.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        const clearTextEventListener = htmx.on("htmx:wsAfterMessage", (e) => {
+            let form = document.getElementById("form");
+            form.reset();
+        });
+    </script>
+    <style>
+        .hide-scroll::-webkit-scrollbar {
+            display: none
+        }
+
+        .hide-scroll {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+</head>
+
+<body class="hide-scroll bg-gray-900 text-white">
+    {% block content %}
+        <p>Hello, world!</p>
+    {% endblock %}
+</body>
+
+</html>

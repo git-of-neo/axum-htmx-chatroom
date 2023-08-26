@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <div class="flex-grow" hx-ext="ws" ws-connect="/ws/{{ room_id }}">
+        <div id="content" class="p-4 pb-[72px]">
+            {% for msg in msgs %}
+            <div class="bg-gray-700 rounded-lg py-2 px-3 mb-2 max-w-fit">{{msg}}</div>
+            {% endfor %}
+            <!-- <div class="flex justify-end">
+                <div class="bg-gray-700 text-white rounded-lg py-2 px-3 mb-2 max-w-fit right-0">not me!</div>
+            </div> -->
+        </div>
+        <footer class="fixed bottom-0 w-full flex-grow">
+            <form class="bg-gray-800 p-4 flex gap-x-3 self-end" ws-send id="form">
+                <input type="hidden" value="{{ room_id }}" name="room_id">
+                <input type="text" class="flex-grow p-2 bg-gray-700 rounded-md focus:outline-none"
+                    name="chat_message" placeholder="Send a message" id="chat_input">
+                <button class="bg-blue-500 text-white py-2 px-4 rounded-md hover:bg-blue-600"
+                    type="submit">Send</button>
+            </form>
+        </footer>
+    </div>
+{% endblock %}

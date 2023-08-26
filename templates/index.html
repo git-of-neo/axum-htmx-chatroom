@@ -1,54 +1,5 @@
-<!DOCTYPE html>
-<html lang="en">
+{% extends "base.html" %}
 
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
-    <script src="https://unpkg.com/htmx.org@1.9.4"
-        integrity="sha384-zUfuhFKKZCbHTY6aRR46gxiqszMk5tcHjsVFxnUo8VMus4kHGVdIYVbOYYNlKmHV"
-        crossorigin="anonymous"></script>
-    <script src="https://unpkg.com/htmx.org/dist/ext/ws.js"></script>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        const clearTextEventListener = htmx.on("htmx:wsAfterMessage", (e) => {
-            let form = document.getElementById("form");
-            form.reset();
-        });
-    </script>
-    <style>
-        .hide-scroll::-webkit-scrollbar {
-            display: none
-        }
-
-        .hide-scroll {
-            -ms-overflow-style: none;
-            scrollbar-width: none;
-        }
-    </style>
-</head>
-
-<body class="hide-scroll">
-    <div class="mx-auto h-full flex flex-col">
-        <div class="flex-grow bg-gray-900 text-white" hx-ext="ws" ws-connect="/ws">
-            <div id="content" class="p-4 pb-[72px]">
-                {% for msg in msgs %}
-                <div class="bg-gray-700 rounded-lg py-2 px-3 mb-2 max-w-fit">{{msg}}</div>
-                {% endfor %}
-                <!-- <div class="flex justify-end">
-                    <div class="bg-gray-700 text-white rounded-lg py-2 px-3 mb-2 max-w-fit right-0">not me!</div>
-                </div> -->
-            </div>
-            <footer class="fixed bottom-0 w-full flex-grow">
-                <form class="bg-gray-800 p-4 flex gap-x-3 self-end" ws-send id="form">
-                    <input type="text" class="flex-grow p-2 bg-gray-700 rounded-md focus:outline-none"
-                        name="chat_message" placeholder="Send a message" id="chat_input">
-                    <button class="bg-blue-500 text-white py-2 px-4 rounded-md hover:bg-blue-600"
-                        type="submit">Send</button>
-                </form>
-            </footer>
-        </div>
-    </div>
-</body>
-
-</html>
+{% block content %}
+<p>Welcome!</p>
+{% endblock %}
