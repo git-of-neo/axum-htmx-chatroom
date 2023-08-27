@@ -28,10 +28,38 @@
     </style>
 </head>
 
-<body class="hide-scroll bg-gray-900 text-white">
-    {% block content %}
-        <p>Hello, world!</p>
-    {% endblock %}
+<body class="bg-gray-900 text-white">
+    
+    <div class="grid grid-cols-2">
+        <div class="flex h-screen">
+            <div class="overflow-auto hide-scroll h-100 position-fixed">
+                <div class="w-12 h-12 bg-gray-600 rounded-full mb-2"></div>
+                <div class="w-12 h-12 bg-gray-600 rounded-full mb-2"></div>
+                <div class="w-12 h-12 bg-gray-600 rounded-full mb-2"></div>
+                <div class="w-12 h-12 bg-gray-600 rounded-full mb-2"></div>
+                <div class="w-12 h-12 bg-gray-600 rounded-full mb-2"></div>
+                <div class="w-12 h-12 bg-gray-600 rounded-full mb-2"></div>
+                <div class="w-12 h-12 bg-gray-600 rounded-full mb-2"></div>
+                <div class="w-12 h-12 bg-gray-600 rounded-full mb-2"></div>
+                <div class="w-12 h-12 bg-gray-600 rounded-full mb-2"></div>
+                <div class="w-12 h-12 bg-gray-600 rounded-full mb-2"></div>
+                <div class="w-12 h-12 bg-gray-600 rounded-full mb-2"></div>
+                <div class="w-12 h-12 bg-gray-600 rounded-full mb-2"></div>
+                <div class="w-12 h-12 bg-gray-600 rounded-full mb-2"></div>
+                <div class="w-12 h-12 bg-gray-600 rounded-full mb-2"></div>
+                <div class="w-12 h-12 bg-gray-600 rounded-full mb-2"></div>
+                <div class="w-12 h-12 bg-gray-600 rounded-full mb-2"></div>
+                <div class="w-12 h-12 bg-gray-600 rounded-full mb-2"></div>
+                <div class="w-12 h-12 bg-gray-600 rounded-full mb-2"></div>
+                <div class="w-12 h-12 bg-blue-600 rounded-full mb-2"></div>
+            </div>
+        <div class="flex h-screen">
+            <div class="overflow-auto hide-scroll h-100">
+                    {% block content %}
+                    {% endblock %}
+            </div>
+        </div>
+    </div>
 </body>
-
+    
 </html>
