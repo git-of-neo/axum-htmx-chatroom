@@ -24,13 +24,3 @@ pub struct ChatRoom {
     id: i64,
     name: String,
 }
-
-// TODO : remove
-impl ChatRoom {
-    pub fn new() -> Self {
-        Self {
-            id: 1,
-            name: "Dummy".to_string(),
-        }
-    }
-}
