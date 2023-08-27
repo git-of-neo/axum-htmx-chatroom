@@ -37,7 +37,7 @@ impl ChatManager<'_> {
     pub async fn list_chats(&self, room: &ChatRoom) -> Result<Vec<ChatMessage>, sqlx::Error> {
         Ok(sqlx::query_as!(
             ChatMessage,
-            "SELECT * FROM Chat WHERE room_id = ? ORDER BY time_created DESC;",
+            "SELECT * FROM Chat WHERE room_id = ? ORDER BY time_created ASC;",
             room.id
         )
         .fetch_all(self.pool)
