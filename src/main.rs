@@ -13,13 +13,16 @@ use axum::{
         ws::{Message, WebSocket},
         Path, State, WebSocketUpgrade,
     },
-    http::{header::SET_COOKIE, HeaderMap},
+    http::HeaderMap,
     middleware, routing, Form,
 };
 use axum_extra::extract::cookie;
 use serde::{Deserialize, Deserializer};
 use tokio::sync::broadcast;
+
+mod login_view;
 mod manager;
+
 use manager::{
     chat_manager::ChatManager,
     login_manager::{self, LoginManager},
@@ -30,7 +33,7 @@ use manager::{
 static SESSION_ID_KEY: &'static str = "session_id";
 
 #[derive(Clone)]
-struct AppState {
+pub struct AppState {
     tx: broadcast::Sender<WsPayload>,
     pool: sqlx::SqlitePool,
 }
@@ -64,10 +67,10 @@ async fn main() -> anyhow::Result<()> {
         .route("/", routing::get(index))
         .route("/chat/:room_id", routing::get(chat))
         .route("/ws/:room_id", routing::get(ws_handler))
-        .route("/login", routing::get(login))
-        .route("/login", routing::post(try_login))
-        .route("/register", routing::get(register))
-        .route("/register", routing::post(try_register))
+        .route("/login", routing::get(login_view::login))
+        .route("/login", routing::post(login_view::try_login))
+        .route("/register", routing::get(login_view::register))
+        .route("/register", routing::post(login_view::try_register))
         // layers (middlewares) are from bottom to top
         .layer(middleware::from_fn_with_state(
             state.clone(),
@@ -237,142 +240,4 @@ async fn chat(State(state): State<Arc<AppState>>, Path(room_id): Path<i64>) -> C
     };
 
     ChatTemplate { msgs, room_id }
-}
-
-#[derive(Deserialize)]
-struct LoginForm {
-    email: String,
-    password: String,
-}
-
-#[derive(Template)]
-#[template(path = "login_attempt.html")]
-struct LoginAttempt {
-    success: bool,
-}
-
-async fn try_login(
-    State(state): State<Arc<AppState>>,
-    Form(credentials): Form<LoginForm>,
-) -> impl IntoResponse {
-    let LoginForm { email, password } = credentials;
-    let user = LoginManager::new(&state.pool)
-        .get_user(email.as_str(), password.as_str())
-        .await;
-
-    let mut headers = HeaderMap::new();
-    match user {
-        Ok(user) => {
-            headers.insert("HX-Redirect", "/".parse().unwrap());
-            headers.insert(
-                SET_COOKIE,
-                format!(
-                    "{}={}",
-                    SESSION_ID_KEY,
-                    SessionManager::new(&state.pool)
-                        .generate_session_id_for(&user)
-                        .await
-                        .unwrap()
-                )
-                .parse()
-                .unwrap(),
-            );
-            (headers, Html("").into_response())
-        }
-        _ => (
-            headers,
-            Html(LoginAttempt { success: false }.render().unwrap()).into_response(),
-        ),
-    }
-}
-
-#[derive(Template)]
-#[template(path = "login.html")]
-struct LoginTemplate {}
-
-async fn login() -> LoginTemplate {
-    LoginTemplate {}
-}
-
-#[derive(Template)]
-#[template(path = "widget_register.html")]
-struct RegisterWidget {
-    email_cache: String,
-    email_taken: bool,
-    mismatch_passwords: bool,
-}
-
-impl Default for RegisterWidget {
-    fn default() -> Self {
-        Self {
-            email_cache: String::new(),
-            email_taken: false,
-            mismatch_passwords: false,
-        }
-    }
-}
-
-async fn register() -> RegisterWidget {
-    RegisterWidget {
-        ..Default::default()
-    }
-}
-
-#[derive(Deserialize)]
-struct RegisterUserForm {
-    email: String,
-    password: String,
-    confirm_password: String,
-}
-
-async fn try_register(
-    State(state): State<Arc<AppState>>,
-    Form(form): Form<RegisterUserForm>,
-) -> impl IntoResponse {
-    let RegisterUserForm {
-        email,
-        password,
-        confirm_password,
-    } = form;
-
-    let mut header = HeaderMap::new();
-    let user = LoginManager::new(&state.pool)
-        .new_user(&email, &password, &confirm_password)
-        .await;
-
-    if user.is_ok() {
-        header.insert("HX-Redirect", "/login".parse().unwrap());
-    }
-
-    let body = match user {
-        Ok(_) => "".to_owned(),
-
-        Err(login_manager::Error::EmailTaken) => RegisterWidget {
-            email_taken: true,
-            email_cache: email,
-            ..Default::default()
-        }
-        .render()
-        .unwrap(),
-
-        Err(login_manager::Error::PasswordMismatch) => RegisterWidget {
-            mismatch_passwords: true,
-            email_cache: email,
-            ..Default::default()
-        }
-        .render()
-        .unwrap(),
-
-        Err(login_manager::Error::EmailTakenAndPasswordMismatch) => RegisterWidget {
-            email_taken: true,
-            email_cache: email,
-            mismatch_passwords: true,
-        }
-        .render()
-        .unwrap(),
-
-        _ => todo!("unhandled database error"),
-    };
-
-    (header, Html(body).into_response())
 }
