@@ -5,7 +5,7 @@ use axum::{
 };
 use futures::{sink::SinkExt, stream::StreamExt};
 use sqlx::SqlitePool;
-use std::{ops::ControlFlow, sync::Arc};
+use tower_http::services::ServeDir;
 
 use askama::Template;
 use axum::{
@@ -31,6 +31,7 @@ use manager::{
 };
 
 static SESSION_ID_KEY: &'static str = "session_id";
+static IMAGE_DIR: &'static str = "static";
 
 #[derive(Clone)]
 pub struct AppState {
@@ -71,6 +72,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/login", routing::post(login_view::try_login))
         .route("/register", routing::get(login_view::register))
         .route("/register", routing::post(login_view::try_register))
+        .nest_service("/static", ServeDir::new(IMAGE_DIR))
         // layers (middlewares) are from bottom to top
         .layer(middleware::from_fn_with_state(
             state.clone(),
