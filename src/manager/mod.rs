@@ -21,6 +21,7 @@ pub struct ChatMessage {
 
 #[derive(sqlx::FromRow, Debug, Clone)]
 pub struct ChatRoom {
-    id: i64,
-    name: String,
+    pub id: i64,
+    pub name: String,
+    pub image_path: Option<String>,
 }

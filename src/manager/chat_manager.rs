@@ -34,11 +34,45 @@ impl ChatManager<'_> {
             .await
     }
 
+    pub async fn new_room(
+        &self,
+        name: &str,
+        image_path: &str,
+        creator: &User,
+    ) -> Result<(), sqlx::Error> {
+        let room = sqlx::query_as!(
+            ChatRoom,
+            "INSERT INTO ChatRoom(name, image_path) VALUES (?, ?) RETURNING *;",
+            name,
+            image_path
+        )
+        .fetch_one(self.pool)
+        .await?;
+        let _ = sqlx::query!(
+            "INSERT INTO UserRoom(user_id, room_id) VALUES (?, ?);",
+            creator.id,
+            room.id
+        )
+        .execute(self.pool)
+        .await?;
+        Ok(())
+    }
+
     pub async fn list_chats(&self, room: &ChatRoom) -> Result<Vec<ChatMessage>, sqlx::Error> {
         Ok(sqlx::query_as!(
             ChatMessage,
             "SELECT * FROM Chat WHERE room_id = ? ORDER BY time_created ASC;",
             room.id
+        )
+        .fetch_all(self.pool)
+        .await?)
+    }
+
+    pub async fn list_rooms(&self, user: &User) -> Result<Vec<ChatRoom>, sqlx::Error> {
+        Ok(sqlx::query_as!(
+            ChatRoom,
+            "SELECT a.* FROM ChatRoom a JOIN UserRoom b WHERE b.user_id = ?;",
+            user.id
         )
         .fetch_all(self.pool)
         .await?)

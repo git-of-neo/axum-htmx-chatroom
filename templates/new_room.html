@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/htmx.org@1.9.4" integrity="sha384-zUfuhFKKZCbHTY6aRR46gxiqszMk5tcHjsVFxnUo8VMus4kHGVdIYVbOYYNlKmHV" crossorigin="anonymous"></script>
+    <title>Document</title>
+</head>
+<body class="bg-gray-900 flex justify-center items-center h-screen">
+    <form hx-post="/room" enctype="multipart/form-data">
+        <div class="mb-4">
+            <label for="name" class="block text-sm font-medium text-gray-300">Room name</label>
+            <input type="text" id="email" name="name"
+                class="mt-1 p-2 w-full border border-gray-600 rounded-md bg-gray-700 text-white" required>
+        </div>
+        <div class="mb-4">
+            <label for="image" class="block text-sm font-medium text-gray-300">Upload image</label>
+            <input type="file" name="image"
+                class="mt-1 p-2 w-full border border-gray-600 rounded-md bg-gray-700 text-white" required>
+        </div>
+        <button type="submit" class="w-full bg-blue-500 text-white py-2 rounded-md hover:bg-blue-600">Create new room</button>
+        <div class="mt-2 text-sm text-red-500">
+            <span id="error-msg"></span>
+        </div>
+    </form>
+</body>
+</html>
