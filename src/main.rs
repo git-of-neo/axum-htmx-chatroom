@@ -222,20 +222,35 @@ async fn websocket<'a>(socket: WebSocket, state: Arc<AppState>, user: User, room
 
 #[derive(Template)]
 #[template(path = "index.html")]
-struct IndexTemplate {}
+struct IndexTemplate {
+    rooms: Vec<ChatRoom>,
+}
 
-async fn index(State(state): State<Arc<AppState>>) -> IndexTemplate {
-    IndexTemplate {}
+async fn index(
+    State(state): State<Arc<AppState>>,
+    Extension(user): Extension<User>,
+) -> IndexTemplate {
+    IndexTemplate {
+        rooms: ChatManager::new(&state.pool)
+            .list_rooms(&user)
+            .await
+            .unwrap_or(Vec::new()),
+    }
 }
 
 #[derive(Template)]
 #[template(path = "chat.html")]
 struct ChatTemplate {
+    rooms: Vec<ChatRoom>,
     room_id: i64,
     msgs: Vec<String>,
 }
 
-async fn chat(State(state): State<Arc<AppState>>, Path(room_id): Path<i64>) -> ChatTemplate {
+async fn chat(
+    State(state): State<Arc<AppState>>,
+    Extension(user): Extension<User>,
+    Path(room_id): Path<i64>,
+) -> ChatTemplate {
     let manager = ChatManager::new(&state.pool);
     let msgs = match manager.get_room(room_id).await {
         Ok(room) => manager
@@ -249,7 +264,13 @@ async fn chat(State(state): State<Arc<AppState>>, Path(room_id): Path<i64>) -> C
         Err(e) => panic!("{:?}", e),
     };
 
+    ChatTemplate {
+        rooms: manager.list_rooms(&user).await.unwrap(),
+        msgs,
+        room_id,
+    }
 }
+
 #[derive(Template)]
 #[template(path = "new_room_results.html")]
 pub struct NewRoomResultsTemplate {
