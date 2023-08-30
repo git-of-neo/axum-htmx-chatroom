@@ -71,7 +71,7 @@ impl ChatManager<'_> {
     pub async fn list_rooms(&self, user: &User) -> Result<Vec<ChatRoom>, sqlx::Error> {
         Ok(sqlx::query_as!(
             ChatRoom,
-            "SELECT a.* FROM ChatRoom a JOIN UserRoom b WHERE b.user_id = ?;",
+            "SELECT * FROM ChatRoom WHERE id IN (SELECT room_id FROM UserRoom WHERE user_id = ?);",
             user.id
         )
         .fetch_all(self.pool)
