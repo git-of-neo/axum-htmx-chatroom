@@ -1,23 +1,23 @@
-<div id="modal" class="relative z-10" aria-labelledby="modal-title" role="dialog" aria-modal="true">
-    <div class="fixed inset-0 bg-gray-950 bg-opacity-75 transition-opacity"></div>
-    <div class="fixed inset-0 z-10 flex items-center justify-center h-screen">
-        <div class="w-fit"> 
-            <form hx-post="/room" enctype="multipart/form-data">
-                <div class="mb-4">
-                    <label for="name" class="block text-sm font-medium text-gray-300">Room name</label>
-                    <input type="text" id="email" name="name"
-                        class="mt-1 p-2 w-full border border-gray-600 rounded-md bg-gray-700 text-white" required>
-                </div>
-                <div class="mb-4">
-                    <label for="image" class="block text-sm font-medium text-gray-300">Upload image</label>
-                    <input type="file" name="image"
-                        class="mt-1 p-2 w-full border border-gray-600 rounded-md bg-gray-700 text-white" required>
-                </div>
-                <button type="submit" class="w-full bg-blue-500 text-white py-2 rounded-md hover:bg-blue-600">Create new room</button>
-                <div class="mt-2 text-sm text-red-500">
-                    <span id="error-msg"></span>
-                </div>
-            </form>
-        </div>
+<div id="modal" 
+    class="fixed top-0 left-0 right-0 bottom-0 bg-gray-900 bg-opacity-75 z-1000 flex flex col items-center w-full"
+    >
+    <div class="z-negative absolute top-0 left-0 right-0 bottom-0" onclick="closeModal()"></div>
+    <div class="w-fit mx-auto">
+        <form hx-post="/room" enctype="multipart/form-data">
+            <div class="mb-4">
+                <label for="name" class="block text-sm font-medium text-gray-300">Room name</label>
+                <input type="text" id="email" name="name"
+                    class="mt-1 p-2 w-full border border-gray-600 rounded-md bg-gray-700 text-white" required>
+            </div>
+            <div class="mb-4">
+                <label for="image" class="block text-sm font-medium text-gray-300">Upload image</label>
+                <input type="file" name="image"
+                    class="mt-1 p-2 w-full border border-gray-600 rounded-md bg-gray-700 text-white" required>
+            </div>
+            <button type="submit" class="w-full bg-blue-500 text-white py-2 rounded-md hover:bg-blue-600">Create new room</button>
+            <div class="mt-2 text-sm text-red-500">
+                <span id="error-msg"></span>
+            </div>
+        </form>
     </div> 
 </div>
