@@ -1,32 +1,24 @@
-use axum::{
-    http::Request,
-    response::{IntoResponse},
-    Extension,
-};
+use axum::{http::Request, response::IntoResponse, Extension};
 use futures::{sink::SinkExt, stream::StreamExt};
 use sqlx::SqlitePool;
-use std::{
-    ops::ControlFlow,
-    sync::Arc,
-    {io, path},
-};
+use std::{ops::ControlFlow, sync::Arc};
 use tower_http::services::ServeDir;
 
 use askama::Template;
 use axum::{
     extract::{
         ws::{Message, WebSocket},
-        Multipart, Path, State, WebSocketUpgrade,
+        Path, State, WebSocketUpgrade,
     },
     middleware, routing,
 };
 use axum_extra::extract::cookie;
 use serde::{Deserialize, Deserializer};
-use tokio::{fs::File, io::AsyncWriteExt, sync::broadcast};
-use uuid::Uuid;
+use tokio::sync::broadcast;
 
 mod login_view;
 mod manager;
+mod new_room_view;
 
 use manager::{
     chat_manager::ChatManager,
@@ -77,8 +69,8 @@ async fn main() -> anyhow::Result<()> {
         .route("/login", routing::post(login_view::try_login))
         .route("/register", routing::get(login_view::register))
         .route("/register", routing::post(login_view::try_register))
-        .route("/room", routing::get(new_room))
-        .route("/room", routing::post(try_new_room))
+        .route("/room", routing::get(new_room_view::new_room))
+        .route("/room", routing::post(new_room_view::try_new_room))
         .nest_service("/static", ServeDir::new(IMAGE_DIR))
         // layers (middlewares) are from bottom to top
         .layer(middleware::from_fn_with_state(
@@ -268,92 +260,4 @@ async fn chat(
         msgs,
         room_id,
     }
-}
-
-#[derive(Template)]
-#[template(path = "new_room_results.html")]
-pub struct NewRoomResultsTemplate {
-    room: Option<ChatRoom>
-}
-
-struct ChatRoomBuilder {
-    name: Option<String>,
-    image_path: Option<String>,
-}
-
-impl ChatRoomBuilder {
-    fn new() -> Self {
-        Self {
-            name: None,
-            image_path: None,
-        }
-    }
-
-    fn set_name(&mut self, name: String) {
-        self.name = Some(name);
-    }
-
-    fn set_image_path(&mut self, image_path: String) {
-        self.image_path = Some(image_path);
-    }
-}
-
-async fn try_new_room(
-    State(state): State<Arc<AppState>>,
-    Extension(user): Extension<User>,
-    mut multipart: Multipart,
-) -> NewRoomResultsTemplate {
-    let mut builder = ChatRoomBuilder::new();
-    while let Some(mut field) = multipart.next_field().await.unwrap() {
-        let name = field.name().unwrap().to_string();
-        if name == "name" {
-            builder.set_name(field.text().await.unwrap())
-        } else if name == "image" {
-            let file_format = field
-                .file_name()
-                .unwrap()
-                .split('.')
-                .last()
-                .expect("file name should have a file extension");
-            let image_path = format!("{}.{}", Uuid::new_v4(), file_format);
-
-            builder.set_image_path(image_path.clone());
-
-            let mut file_path = path::PathBuf::from(IMAGE_DIR);
-            file_path.push(image_path);
-
-            let mut file = match File::create(&file_path).await {
-                Ok(f) => f,
-                Err(e) => {
-                    if e.kind() == io::ErrorKind::NotFound {
-                        tokio::fs::create_dir(IMAGE_DIR).await.unwrap();
-                        File::create(&file_path).await.expect("should be created")
-                    } else {
-                        panic!("{}", e)
-                    }
-                }
-            };
-            while let Some(chunk) = field.chunk().await.unwrap() {
-                file.write_all(&chunk).await.unwrap();
-            }
-        }
-    }
-
-    let new_room = match ChatManager::new(&state.pool)
-        .new_room(&builder.name.unwrap(), &builder.image_path.unwrap(), &user)
-        .await {
-            Ok(room) => Some(room),
-            Err(_) => None
-        };
-
-    NewRoomResultsTemplate { room: new_room }
-
-}
-
-#[derive(Template)]
-#[template(path = "new_room.html")]
-pub struct NewRoomTemplate {}
-
-pub async fn new_room() -> NewRoomTemplate {
-    NewRoomTemplate {}
 }
