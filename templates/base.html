@@ -15,6 +15,10 @@
             let form = document.getElementById("form");
             form.reset();
         });
+
+        const closeModal = () => {
+            document.getElementById("modal").remove();
+        }
     </script>
     <style>
         .hide-scroll::-webkit-scrollbar {
@@ -25,6 +29,10 @@
             -ms-overflow-style: none;
             scrollbar-width: none;
         }
+
+        .z-negative {
+            z-index: -1;
+        }
     </style>
 </head>
 
@@ -32,7 +40,7 @@
     
     <div class="grid grid-cols-2">
         <div class="flex h-screen">
-            <div class="overflow-auto hide-scroll h-100 position-fixed">
+            <div id="sidebar" class="overflow-auto hide-scroll h-100 position-fixed">
                 <div class="w-12 h-12 bg-gray-600 rounded-full flex items-center justify-center cursor-pointer"
                     hx-get="/room"
                     hx-target="body"
