@@ -1,5 +1,13 @@
-<div>
-    {% if success %} Ok!
-    {% else %} Failed!
-    {% endif %}
+<div id="modal"  hx-swap-oob="true"></div>
+<div id="sidebar" hx-swap-oob="beforeend">
+    {% match room %}
+    {% when Some with (r) %}
+    <a href="/chat/{{ r.id }}">
+        {% if r.image_path.is_some() %}
+        <img class="w-12 h-12 bg-gray-600 rounded-full mb-2 scale-down" 
+        src="/{{ crate::IMAGE_DIR }}/{{r.image_path.as_ref().unwrap()}}">
+        {% endif %}
+    </a>
+    {% when None %}
+    {% endmatch %}
 </div>

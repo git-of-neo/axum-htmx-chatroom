@@ -39,7 +39,7 @@ impl ChatManager<'_> {
         name: &str,
         image_path: &str,
         creator: &User,
-    ) -> Result<(), sqlx::Error> {
+    ) -> Result<ChatRoom, sqlx::Error> {
         let room = sqlx::query_as!(
             ChatRoom,
             "INSERT INTO ChatRoom(name, image_path) VALUES (?, ?) RETURNING *;",
@@ -48,14 +48,14 @@ impl ChatManager<'_> {
         )
         .fetch_one(self.pool)
         .await?;
-        let _ = sqlx::query!(
+        let _= sqlx::query!(
             "INSERT INTO UserRoom(user_id, room_id) VALUES (?, ?);",
             creator.id,
             room.id
         )
         .execute(self.pool)
         .await?;
-        Ok(())
+        Ok(room)
     }
 
     pub async fn list_chats(&self, room: &ChatRoom) -> Result<Vec<ChatMessage>, sqlx::Error> {

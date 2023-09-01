@@ -1,9 +1,9 @@
 use axum::{
     http::Request,
-    response::{Html, IntoResponse},
+    response::{IntoResponse},
     Extension,
 };
-use futures::{sink::SinkExt, stream::StreamExt, TryFutureExt};
+use futures::{sink::SinkExt, stream::StreamExt};
 use sqlx::SqlitePool;
 use std::{
     ops::ControlFlow,
@@ -18,8 +18,7 @@ use axum::{
         ws::{Message, WebSocket},
         Multipart, Path, State, WebSocketUpgrade,
     },
-    http::HeaderMap,
-    middleware, routing, Form,
+    middleware, routing,
 };
 use axum_extra::extract::cookie;
 use serde::{Deserialize, Deserializer};
@@ -274,7 +273,7 @@ async fn chat(
 #[derive(Template)]
 #[template(path = "new_room_results.html")]
 pub struct NewRoomResultsTemplate {
-    success: bool,
+    room: Option<ChatRoom>
 }
 
 struct ChatRoomBuilder {
@@ -340,12 +339,15 @@ async fn try_new_room(
         }
     }
 
-    // let NewRoomForm { name, image } = data;
-    let success = ChatManager::new(&state.pool)
+    let new_room = match ChatManager::new(&state.pool)
         .new_room(&builder.name.unwrap(), &builder.image_path.unwrap(), &user)
-        .await
-        .is_ok();
-    NewRoomResultsTemplate { success }
+        .await {
+            Ok(room) => Some(room),
+            Err(_) => None
+        };
+
+    NewRoomResultsTemplate { room: new_room }
+
 }
 
 #[derive(Template)]
