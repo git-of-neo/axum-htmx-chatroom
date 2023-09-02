@@ -16,13 +16,13 @@ use axum_extra::extract::cookie;
 use serde::{Deserialize, Deserializer};
 use tokio::sync::broadcast;
 
+mod invite_users_view;
 mod login_view;
 mod manager;
 mod new_room_view;
 
 use manager::{
     chat_manager::ChatManager,
-    login_manager::{self, LoginManager},
     session_manager::{SessionId, SessionManager},
     user_manager::{self, UserManager},
     ChatRoom, User,
@@ -72,6 +72,8 @@ async fn main() -> anyhow::Result<()> {
         .route("/register", routing::post(login_view::try_register))
         .route("/room", routing::get(new_room_view::new_room))
         .route("/room", routing::post(new_room_view::try_new_room))
+        .route("/search", routing::post(invite_users_view::list_users))
+        .route("/invite", routing::get(invite_users_view::invite_user))
         .nest_service("/static", ServeDir::new(IMAGE_DIR))
         // layers (middlewares) are from bottom to top
         .layer(middleware::from_fn_with_state(
