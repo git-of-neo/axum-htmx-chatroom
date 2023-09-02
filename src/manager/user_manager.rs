@@ -1,11 +1,11 @@
 use super::User;
 
 #[derive(Clone)]
-pub struct LoginManager<'a> {
+pub struct UserManager<'a> {
     pool: &'a sqlx::SqlitePool,
 }
 
-impl<'a> LoginManager<'a> {
+impl<'a> UserManager<'a> {
     pub fn new(pool: &'a sqlx::SqlitePool) -> Self {
         Self { pool }
     }
@@ -30,7 +30,7 @@ fn compare_password<'a>(a: &'a str, b: &'a str) -> bool {
     a == b
 }
 
-impl LoginManager<'_> {
+impl UserManager<'_> {
     pub async fn get_user(&self, email: &str, password: &str) -> Result<User, Error> {
         let user = sqlx::query_as!(
             User,
@@ -81,6 +81,15 @@ impl LoginManager<'_> {
         .await?;
         Ok(())
     }
+
+    pub async fn search_user(&self, term: &str) -> Result<Vec<User>, sqlx::Error> {
+        let search_term = format!("{}%", term);
+        Ok(
+            sqlx::query_as!(User, "SELECT * FROM User WHERE email LIKE ?", search_term)
+                .fetch_all(self.pool)
+                .await?,
+        )
+    }
 }
 
 #[cfg(test)]
@@ -89,7 +98,7 @@ mod tests {
 
     #[sqlx::test]
     async fn ok_create_new_user(pool: sqlx::SqlitePool) {
-        assert!(LoginManager::new(&pool)
+        assert!(UserManager::new(&pool)
             .new_user("test123@example.com", "test123", "test123")
             .await
             .is_ok())
@@ -97,7 +106,7 @@ mod tests {
 
     #[sqlx::test(fixtures("users"))]
     async fn ok_get_user(pool: sqlx::SqlitePool) {
-        assert!(LoginManager::new(&pool)
+        assert!(UserManager::new(&pool)
             .get_user("test123@example.com", "test123")
             .await
             .is_ok())

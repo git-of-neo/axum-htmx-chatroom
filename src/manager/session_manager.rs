@@ -78,7 +78,7 @@ impl SessionManager<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::login_manager::LoginManager;
+    use crate::user_manager::UserManager;
 
     #[sqlx::test(fixtures("users", "sessions"))]
     async fn ok_get_user(pool: sqlx::SqlitePool) {
@@ -90,7 +90,7 @@ mod tests {
 
     #[sqlx::test(fixtures("users"))]
     async fn ok_retrieve_user_from_generated_session_id(pool: sqlx::SqlitePool) {
-        let user = LoginManager::new(&pool)
+        let user = UserManager::new(&pool)
             .get_user("test123@example.com", "test123")
             .await
             .unwrap();

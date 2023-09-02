@@ -14,8 +14,8 @@ use crate::AppState;
 use crate::SESSION_ID_KEY;
 
 use manager::{
-    login_manager::{self, LoginManager},
     session_manager::SessionManager,
+    user_manager::{self, UserManager},
 };
 
 #[derive(Deserialize)]
@@ -35,7 +35,7 @@ pub async fn try_login(
     Form(credentials): Form<LoginForm>,
 ) -> impl IntoResponse {
     let LoginForm { email, password } = credentials;
-    let user = LoginManager::new(&state.pool)
+    let user = UserManager::new(&state.pool)
         .get_user(email.as_str(), password.as_str())
         .await;
 
@@ -115,7 +115,7 @@ pub async fn try_register(
     } = form;
 
     let mut header = HeaderMap::new();
-    let user = LoginManager::new(&state.pool)
+    let user = UserManager::new(&state.pool)
         .new_user(&email, &password, &confirm_password)
         .await;
 
@@ -126,7 +126,7 @@ pub async fn try_register(
     let body = match user {
         Ok(_) => "".to_owned(),
 
-        Err(login_manager::Error::EmailTaken) => RegisterWidget {
+        Err(user_manager::Error::EmailTaken) => RegisterWidget {
             email_taken: true,
             email_cache: email,
             ..Default::default()
@@ -134,7 +134,7 @@ pub async fn try_register(
         .render()
         .unwrap(),
 
-        Err(login_manager::Error::PasswordMismatch) => RegisterWidget {
+        Err(user_manager::Error::PasswordMismatch) => RegisterWidget {
             mismatch_passwords: true,
             email_cache: email,
             ..Default::default()
@@ -142,7 +142,7 @@ pub async fn try_register(
         .render()
         .unwrap(),
 
-        Err(login_manager::Error::EmailTakenAndPasswordMismatch) => RegisterWidget {
+        Err(user_manager::Error::EmailTakenAndPasswordMismatch) => RegisterWidget {
             email_taken: true,
             email_cache: email,
             mismatch_passwords: true,

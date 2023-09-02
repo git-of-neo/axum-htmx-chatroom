@@ -1,8 +1,8 @@
 use sqlx::types::chrono::NaiveDateTime;
 
 pub mod chat_manager;
-pub mod login_manager;
 pub mod session_manager;
+pub mod user_manager;
 
 #[derive(sqlx::FromRow, Debug, Clone)]
 pub struct User {

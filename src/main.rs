@@ -24,6 +24,7 @@ use manager::{
     chat_manager::ChatManager,
     login_manager::{self, LoginManager},
     session_manager::{SessionId, SessionManager},
+    user_manager::{self, UserManager},
     ChatRoom, User,
 };
 
@@ -52,11 +53,11 @@ async fn main() -> anyhow::Result<()> {
     let (tx, _rx) = broadcast::channel(100);
     let state = Arc::new(AppState::new(tx, pool));
 
-    match LoginManager::new(&state.pool)
+    match UserManager::new(&state.pool)
         .new_user("test@example.com", "test123", "test123")
         .await
     {
-        Ok(_) | Err(login_manager::Error::EmailTaken) => Ok(()),
+        Ok(_) | Err(user_manager::Error::EmailTaken) => Ok(()),
         e => e,
     }
     .unwrap();
