@@ -2,6 +2,14 @@
 
 {% block content %}
     <div hx-ext="ws" ws-connect="/ws/{{ room_id }}">
+        <div class="fixed w-full top-0 left-12 pr-12 bg-gray-800 h-10">
+            <div class="flex justify-end items-center">
+                <button class="flex-none w-fit bg-blue-500 text-white rounded-md hover:bg-blue-600 p-2" hx-get="/invite"
+                    hx-target="body" hx-swap="beforeend">
+                    Invite users
+                </button>
+            </div>
+        </div>
         <div id="content" class="w-full flex-col grow p-4 pb-[72px]">
             {% for msg in msgs %}
             <div class="bg-gray-700 rounded-lg py-2 px-3 mb-2 max-w-fit">{{msg}}</div>

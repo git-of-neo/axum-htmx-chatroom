@@ -13,13 +13,14 @@ use axum::{
     middleware, routing,
 };
 use axum_extra::extract::cookie;
-use serde::{Deserialize, Deserializer};
+use serde::Deserialize;
 use tokio::sync::broadcast;
 
 mod invite_users_view;
 mod login_view;
 mod manager;
 mod new_room_view;
+mod utils;
 
 use manager::{
     chat_manager::ChatManager,
@@ -74,6 +75,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/room", routing::post(new_room_view::try_new_room))
         .route("/search", routing::post(invite_users_view::list_users))
         .route("/invite", routing::get(invite_users_view::invite_user))
+        .route("/invite", routing::post(invite_users_view::try_invite_user))
         .nest_service("/static", ServeDir::new(IMAGE_DIR))
         // layers (middlewares) are from bottom to top
         .layer(middleware::from_fn_with_state(
@@ -132,21 +134,9 @@ async fn authenticate_session_id<B>(
 
 #[derive(Deserialize, Debug, Clone)]
 struct WsPayload {
-    #[serde(deserialize_with = "i64_from_string")]
+    #[serde(deserialize_with = "utils::i64_from_string")]
     room_id: i64,
     chat_message: String,
-}
-
-fn i64_from_string<'de, D>(deserializer: D) -> Result<i64, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    let s = String::deserialize(deserializer)?;
-
-    match s.parse::<i64>() {
-        Ok(int) => Ok(int),
-        Err(e) => Err(serde::de::Error::custom(e.to_string())),
-    }
 }
 
 async fn ws_handler(

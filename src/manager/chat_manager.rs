@@ -48,7 +48,7 @@ impl ChatManager<'_> {
         )
         .fetch_one(self.pool)
         .await?;
-        let _= sqlx::query!(
+        let _ = sqlx::query!(
             "INSERT INTO UserRoom(user_id, room_id) VALUES (?, ?);",
             creator.id,
             room.id
@@ -76,5 +76,16 @@ impl ChatManager<'_> {
         )
         .fetch_all(self.pool)
         .await?)
+    }
+
+    pub async fn invite(&self, user_id: i64, to_room_id: i64) -> Result<(), sqlx::Error> {
+        sqlx::query!(
+            "INSERT INTO UserRoom(user_id, room_id) VALUES (?,?);",
+            user_id,
+            to_room_id
+        )
+        .execute(self.pool)
+        .await?;
+        Ok(())
     }
 }

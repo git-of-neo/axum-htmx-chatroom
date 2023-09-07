@@ -37,34 +37,25 @@
 </head>
 
 <body class="bg-gray-900 text-white">
-    
-    <div class="grid grid-cols-1">
-        <div class="flex h-screen">
-            <div id="sidebar" class="overflow-auto hide-scroll h-100 position-fixed">
-                <div class="w-12 h-12 bg-gray-600 rounded-full flex items-center justify-center cursor-pointer"
-                    hx-get="/room"
-                    hx-target="body"
-                    hx-swap="beforeend">
-                    <svg viewBox="0 0 24 24" stroke="white" class="w-8 h-8">
-                        <path stroke-linecap="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
+    <div class="flex h-screen">
+        <div id="sidebar" class="overflow-auto hide-scroll h-100 position-fixed">
+            <div class="w-12 h-12 bg-gray-600 rounded-full flex items-center justify-center cursor-pointer" hx-get="/room"
+                hx-target="body" hx-swap="beforeend">
+                <svg viewBox="0 0 24 24" stroke="white" class="w-8 h-8">
+                    <path stroke-linecap="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                     </svg>
-                </div>
-                {% for room in rooms %}
-                <a href="/chat/{{ room.id }}">
-                    <img class="w-12 h-12 bg-gray-600 rounded-full mb-2 scale-down" 
-                        {% match room.image_path %}
-                            {% when Some with (val) %}
-                                src="/{{ crate::IMAGE_DIR }}/{{val}}"
-                            {% when None %}
-                        {% endmatch %}>
+                    </div>
+                    {% for room in rooms %}
+                    <a href="/chat/{{ room.id }}">
+                <img class="w-12 h-12 bg-gray-600 rounded-full mb-2 scale-down" {% match room.image_path %} {% when Some with (val) %}
+                    src="/{{ crate::IMAGE_DIR }}/{{val}}" {% when None %} {% endmatch %}>
                 </a>
                 {% endfor %}
-            </div>
+                </div>
         <div class="w-full h-screen">
             <div class="overflow-auto hide-scroll h-100">
-                    {% block content %}
-                    {% endblock %}
-            </div>
+                {% block content %}
+                {% endblock %}
         </div>
     </div>
 </body>

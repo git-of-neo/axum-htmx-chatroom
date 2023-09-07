@@ -1,5 +1,11 @@
 {% for user in users%}
 <tr>
-    <td>{{ user.email }}</td>
+    <td class="p-2 w-full text-white">{{ user.email }}</td>
+    <td>
+        <form hx-post="/invite">
+            <input type="hidden" value="{{ user.id }}" name="user_id">
+            <button type="submit" class="bg-blue-500 text-white rounded-md hover:bg-blue-600 p-2">invite</button>
+        </form>
+    </td>
 </tr>
 {% endfor %}

@@ -6,7 +6,7 @@ pub mod user_manager;
 
 #[derive(sqlx::FromRow, Debug, Clone)]
 pub struct User {
-    id: i64,
+    pub id: i64,
     pub email: String,
     password: String,
 }
